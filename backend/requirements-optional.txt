@@ -1,0 +1,14 @@
+# Enable uploaded patient asset/session mirroring when COGNIV_USE_FIREBASE=1.
+firebase-admin>=7.0
+# Extract text from uploaded PDF story documents during story build/indexing.
+pypdf>=5.0
+# MongoDB Atlas metadata plus GridFS file storage.
+pymongo>=4.10
+# Local English voice commands using the offline Whisper adapter.
+openai-whisper>=20250625
+# Indic-Transcribe Canary multilingual ASR runtime.
+torchaudio>=2.1
+transformers>=4.44
+sentencepiece>=0.1.99
+soundfile>=0.12
+av>=18.0

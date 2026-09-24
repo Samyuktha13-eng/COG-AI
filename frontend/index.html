@@ -1,0 +1,2652 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cogniv AI Pipeline</title>
+    <style>
+      :root {
+        --bg: #f5f3ff;
+        --bg-deep: #efe9ff;
+        --panel: #ffffff;
+        --panel-soft: #f3edff;
+        --border: rgba(124, 58, 237, 0.2);
+        --text: #1f1635;
+        --muted: #6b5c86;
+        --accent: #8b5cf6;
+        --accent-2: #a78bfa;
+        --accent-3: #ec4899;
+        --success: #10b981;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+        --glow: rgba(168, 85, 247, 0.28);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(168, 85, 247, 0.28), transparent 22%),
+          radial-gradient(circle at top right, rgba(236, 72, 153, 0.12), transparent 25%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+        color: var(--text);
+        overflow-y: auto;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .sidebar {
+        width: 100%;
+        background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245, 243, 255, 0.98));
+        border-bottom: 1px solid var(--border);
+        padding: 14px 18px 12px;
+        position: sticky;
+        top: 0;
+        box-shadow: 0 12px 26px rgba(139, 92, 246, 0.08);
+        z-index: 3;
+      }
+
+      .sidebar-nav {
+        margin-top: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .nav-item {
+        flex: 1 1 180px;
+        min-width: 150px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid transparent;
+        color: var(--text);
+        padding: 12px 14px;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        box-shadow: 0 6px 16px rgba(139, 92, 246, 0.06);
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      .nav-item:hover {
+        background: rgba(168, 85, 247, 0.08);
+        border-color: rgba(168, 85, 247, 0.3);
+        transform: translateX(2px);
+      }
+
+      .nav-item.active {
+        background: linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(236, 72, 153, 0.12));
+        border-color: rgba(168, 85, 247, 0.4);
+        box-shadow: 0 10px 24px var(--glow);
+      }
+
+      .content {
+        flex: 1;
+        padding: 12px 18px 18px 18px;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      .status-pill {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(93, 234, 171, 0.08));
+        border: 1px solid rgba(16, 185, 129, 0.28);
+        color: #0f766e;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        box-shadow: 0 8px 18px rgba(16, 185, 129, 0.08);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .flow-mini-list {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        color: var(--muted);
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(139, 92, 246, 0.05);
+        border: 1px solid rgba(139, 92, 246, 0.12);
+      }
+
+      .top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .overview-shell {
+        display: grid;
+        grid-template-columns: minmax(360px, 440px) minmax(0, 1.5fr);
+        gap: 22px;
+        align-items: stretch;
+        min-height: calc(100vh - 120px);
+      }
+
+      .card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,245,255,0.9));
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 12px 28px rgba(139, 92, 246, 0.12);
+      }
+
+      .overview-copy {
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .chat-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        height: 100%;
+      }
+
+      .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .chat-header-title {
+        font-size: 0.82rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .chat-history {
+        flex: 1;
+        min-height: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-right: 4px;
+      }
+
+      .chat-message {
+        border-radius: 14px;
+        padding: 12px 14px;
+        line-height: 1.5;
+        font-size: 0.95rem;
+      }
+
+      .chat-message.bot {
+        background: rgba(139, 92, 246, 0.08);
+        border: 1px solid rgba(139, 92, 246, 0.12);
+        color: var(--text);
+      }
+
+      .chat-message.user {
+        background: rgba(16, 185, 129, 0.08);
+        border: 1px solid rgba(16, 185, 129, 0.15);
+        color: var(--text);
+        align-self: flex-end;
+        max-width: 90%;
+      }
+
+      .chat-input-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 110px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,243,255,0.86));
+        color: var(--text);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 20px rgba(139, 92, 246, 0.08);
+        resize: vertical;
+      }
+
+      .scene-stage {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        height: 100%;
+      }
+
+      .scene-stage-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .scene-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        color: #0f766e;
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .scene-status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.1);
+      }
+
+      .video-box {
+        flex: 1;
+        min-height: 520px;
+        width: 100%;
+        border-radius: 24px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(91, 33, 182, 0.7));
+        box-shadow: 0 18px 32px rgba(139, 92, 246, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .video-box video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(167, 139, 250, 0.12);
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .overview-copy h2 {
+        margin: 18px 0 12px;
+        font-size: clamp(2rem, 3vw, 2.8rem);
+        line-height: 1.1;
+      }
+
+      .overview-copy p {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.7;
+      }
+
+      .info-boxes {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .info-box {
+        padding: 16px 14px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(243, 237, 255, 0.9));
+        border: 1px solid var(--border);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      }
+
+      .info-box .icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 10px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.18));
+        font-size: 1.15rem;
+      }
+
+      .info-box strong {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 0.96rem;
+      }
+
+      .info-box span {
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.5;
+      }
+
+      .overview-visual {
+        position: relative;
+        overflow: hidden;
+        padding: 20px;
+      }
+
+      .overview-visual::before {
+        content: "";
+        position: absolute;
+        inset: -20% auto auto -5%;
+        width: 180px;
+        height: 180px;
+        background: radial-gradient(circle, rgba(168, 85, 247, 0.26), transparent 60%);
+        animation: drift 9s ease-in-out infinite alternate;
+      }
+
+      @keyframes drift {
+        0% { transform: translate(0, 0) scale(1); }
+        100% { transform: translate(26px, 18px) scale(1.1); }
+      }
+
+      .visual-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .visual-header .title {
+        font-weight: 700;
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.14);
+        animation: pulseGlow 2.2s ease-in-out infinite;
+      }
+
+      @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.12); opacity: 0.8; }
+      }
+
+      .svg-flow {
+        width: 100%;
+        height: 250px;
+        display: block;
+        position: relative;
+        z-index: 1;
+      }
+
+      .flow-node {
+        animation: floatY 4s ease-in-out infinite;
+      }
+
+      .flow-node:nth-child(2n) {
+        animation-delay: 0.8s;
+      }
+
+      .flow-node:nth-child(3n) {
+        animation-delay: 1.4s;
+      }
+
+      @keyframes floatY {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
+      }
+
+      .visual-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 8px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .mini-stat, .summary-chip {
+        padding: 12px 10px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.6);
+        border: 1px solid var(--border);
+        text-align: center;
+      }
+
+      .summary-chip {
+        min-height: 76px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+
+      .summary-chip strong {
+        font-size: 1.2rem;
+      }
+
+      .mini-stat {
+        padding: 12px 10px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.6);
+        border: 1px solid var(--border);
+        text-align: center;
+      }
+
+      .mini-stat strong {
+        display: block;
+        font-size: 1.05rem;
+        margin-bottom: 4px;
+      }
+
+      .mini-stat span {
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .card h2 {
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-size: 1.2rem;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .action-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 11px 16px;
+        border-radius: 14px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .action-button .icon-wrap {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.18);
+        border: 1px solid rgba(255,255,255,0.18);
+      }
+
+      .action-button .icon-svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+
+      .action-button.secondary {
+        color: var(--text);
+      }
+
+      .action-button.secondary .icon-wrap {
+        background: rgba(139, 92, 246, 0.08);
+        border-color: rgba(139, 92, 246, 0.12);
+      }
+
+      button, input, textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        border: none;
+        border-radius: 12px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: white;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.15s ease;
+        box-shadow: 0 10px 24px rgba(139, 92, 246, 0.2);
+      }
+
+      button.secondary {
+        background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+        color: var(--text);
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 18px rgba(139, 92, 246, 0.08);
+      }
+
+      button.success {
+        background: linear-gradient(135deg, #10b981, #34d399);
+        color: white;
+      }
+
+      button:hover {
+        opacity: 0.96;
+        transform: translateY(-1px);
+      }
+
+      button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+        outline: 3px solid rgba(236, 72, 153, 0.42);
+        outline-offset: 2px;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.62;
+        transform: none;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 8px 12px;
+        margin: 0;
+      }
+      dt {
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+      }
+
+      .asset-list, .video-list {
+        list-style: none;
+        padding: 0;
+        margin: 12px 0 0 0;
+        display: grid;
+        gap: 8px;
+      }
+      .asset-list li, .video-list li {
+        background: rgba(148, 163, 184, 0.08);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+
+      .upload-wrap {
+        display: grid;
+        gap: 10px;
+      }
+      input[type="file"] {
+        width: 100%;
+        color: var(--text);
+      }
+
+      .voice-file-input {
+        display: none;
+      }
+
+      .file-picker {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        padding: 11px 16px;
+        border: 1px dashed rgba(139, 92, 246, 0.42);
+        border-radius: 12px;
+        color: var(--text);
+        background: rgba(139, 92, 246, 0.06);
+        cursor: pointer;
+      }
+
+      .file-picker:hover {
+        background: rgba(139, 92, 246, 0.12);
+      }
+
+      .file-name {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .health-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        padding: 8px 12px;
+        border: 1px solid rgba(16, 185, 129, 0.26);
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.08);
+        color: #0f766e;
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+
+      .health-badge::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .memory-feedback {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 4;
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border: 1px solid rgba(255,255,255,.22);
+        border-radius: 16px;
+        background: rgba(9, 13, 29, .78);
+        font-size: 1.7rem;
+        box-shadow: 0 10px 22px rgba(4, 7, 24, .28);
+      }
+
+      .memory-score {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 16px;
+        margin-top: 16px;
+        border: 1px solid rgba(16, 185, 129, 0.22);
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(16,185,129,.1), rgba(139,92,246,.08));
+      }
+
+      .memory-score strong { font-size: 1.7rem; color: #0f766e; }
+      .memory-score span { color: var(--muted); font-size: .86rem; }
+
+      textarea {
+        width: 100%;
+        min-height: 90px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,243,255,0.86));
+        color: var(--text);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 20px rgba(139, 92, 246, 0.08);
+        resize: vertical;
+      }
+
+      textarea::placeholder {
+        color: rgba(69, 61, 92, 0.7);
+      }
+
+      .panel {
+        display: none;
+        min-height: calc(100vh - 80px);
+        overflow: hidden;
+      }
+
+      .panel.active {
+        display: block;
+      }
+
+      .card {
+        height: auto;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .card > *:last-child {
+        margin-bottom: 0;
+      }
+
+      .log {
+        margin-top: 20px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(245,243,255,0.92));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        min-height: 120px;
+        white-space: pre-wrap;
+        color: var(--text);
+        box-shadow: 0 10px 22px rgba(139, 92, 246, 0.08);
+      }
+
+      .video-box {
+        margin-top: 12px;
+        width: min(100%, 720px);
+        height: 420px;
+        min-height: 420px;
+        margin-left: auto;
+        margin-right: auto;
+        border-radius: 22px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(91, 33, 182, 0.7));
+        box-shadow: 0 16px 28px rgba(139, 92, 246, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        background: #000;
+      }
+
+      /* Memory adventure visual layer */
+      #gameplay.active {
+        background: #10152b;
+        border-radius: 28px;
+        padding: 18px;
+        min-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+
+      #gameplay.active > .card {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: clamp(18px, 3vw, 34px);
+        position: relative;
+        color: #f8f4ff;
+        background:
+          radial-gradient(circle at 88% 8%, rgba(249, 168, 212, .16), transparent 22%),
+          linear-gradient(145deg, #171d3d 0%, #10152b 58%, #1c1734 100%);
+        border: 1px solid rgba(205, 190, 255, .2);
+        border-radius: 28px;
+        box-shadow: 0 28px 80px rgba(4, 7, 24, .36);
+        overflow: hidden;
+      }
+
+      #gameplay h2 {
+        margin: 0;
+        font-family: Georgia, serif;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        letter-spacing: .01em;
+        color: #fff7e8;
+      }
+
+      #gameplay > .card > p,
+      #gameplay .muted,
+      #gameplay #gameBeatInfo,
+      #gameplay #reportStatus {
+        color: #b7bfdc;
+      }
+
+      .adventure-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: end;
+        margin-bottom: 20px;
+      }
+
+      .adventure-kicker {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #f6c978;
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+
+      .adventure-kicker::before {
+        content: '';
+        width: 28px;
+        height: 2px;
+        background: #f6c978;
+      }
+
+      .player-hud {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 9px;
+      }
+
+      .hud-chip {
+        min-width: 92px;
+        padding: 9px 12px;
+        border: 1px solid rgba(205, 190, 255, .18);
+        border-radius: 14px;
+        background: rgba(255,255,255,.06);
+        text-align: center;
+      }
+
+      .hud-chip strong { display:block; color:#fff7e8; font-size:1.08rem; }
+      .hud-chip span { color:#9fa8c7; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; }
+
+      .adventure-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .scene-card {
+        position: relative;
+        min-height: 540px;
+        padding: 14px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 24px;
+        background: #090d1d;
+        overflow: hidden;
+      }
+
+      .scene-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        box-shadow: inset 0 0 80px rgba(5, 8, 26, .72);
+      }
+
+      .scene-card .video-box {
+        position: absolute;
+        inset: 14px;
+        width: auto;
+        height: auto;
+        min-height: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #252b55, #0a0d1d);
+        box-shadow: none;
+      }
+
+      .scene-overlay {
+        position: absolute;
+        z-index: 2;
+        left: 30px;
+        right: 30px;
+        bottom: 28px;
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 14px;
+      }
+
+      .scene-title-lockup { max-width: 68%; }
+      .scene-title-lockup small { color:#f6c978; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+      .scene-title-lockup strong { display:block; margin-top:5px; color:#fff; font-family:Georgia,serif; font-size:clamp(1.5rem,3vw,2.6rem); }
+
+      .scene-status {
+        padding: 8px 11px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        background: rgba(9, 13, 29, .68);
+        color: #d9e3ff;
+        font-size: .75rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .adventure-sidebar { display:grid; gap:14px; align-content:start; }
+
+      .quest-card, .chapter-card, .badge-card {
+        border: 1px solid rgba(205, 190, 255, .17);
+        border-radius: 20px;
+        background: rgba(255,255,255,.065);
+        padding: 18px;
+      }
+
+      .quest-card { background: linear-gradient(145deg, rgba(246,201,120,.18), rgba(236,72,153,.08)); }
+      .panel-label { color:#f6c978; font-size:.7rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+      .quest-card h3 { margin:8px 0 8px; color:#fff7e8; font-family:Georgia,serif; font-size:1.35rem; }
+      .quest-card p { margin:0; color:#e3e6f4; line-height:1.55; }
+      .quest-reward { margin-top:14px; color:#f6c978; font-size:.8rem; font-weight:800; }
+
+      .chapter-card h3, .badge-card h3 { margin:0 0 12px; color:#fff; font-size:1rem; }
+      .memory-path-adventure { display:grid; gap:8px; }
+      .memory-path-adventure .path-node { display:flex; align-items:center; gap:10px; color:#9fa8c7; font-size:.84rem; }
+      .memory-path-adventure .path-node::before { content:'○'; color:#7c86aa; font-size:1.25rem; }
+      .memory-path-adventure .path-node.active { color:#fff7e8; font-weight:800; }
+      .memory-path-adventure .path-node.active::before { content:'✦'; color:#f6c978; }
+      .memory-path-adventure .path-node.done { color:#9ee6c7; }
+      .memory-path-adventure .path-node.done::before { content:'✓'; color:#5ee0ad; }
+
+      .badge-row { display:flex; flex-wrap:wrap; gap:8px; }
+      .badge { display:grid; place-items:center; width:48px; height:48px; border:1px solid rgba(246,201,120,.28); border-radius:14px; background:rgba(246,201,120,.11); font-size:1.35rem; }
+      .badge.locked { filter:grayscale(1); opacity:.35; }
+
+      .adventure-controls { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+      .adventure-controls button { flex:1 1 160px; }
+      #gameplay button { border-radius:14px; }
+      #gameplay .button-row { background:rgba(255,255,255,.045); padding:14px; border:1px solid rgba(205,190,255,.12); border-radius:18px; }
+      #gameplay #commandPrompt { border-left-color:#f6c978 !important; background:rgba(246,201,120,.1) !important; color:#fff7e8 !important; }
+      #gameplay #commandExamples { color:#b7bfdc !important; }
+
+      @keyframes questIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+      .quest-card, .scene-card, .chapter-card { animation: questIn .55s ease both; }
+
+      @media (max-width: 900px) {
+        .adventure-header { grid-template-columns: 1fr; }
+        .player-hud { justify-content:flex-start; }
+        .adventure-layout { grid-template-columns: 1fr; }
+        .scene-card { min-height: 430px; }
+      }
+
+      @media (max-width: 560px) {
+        #gameplay.active { padding:8px; border-radius:18px; }
+        #gameplay.active > .card { padding:16px; border-radius:20px; }
+        .scene-card { min-height: 350px; padding:8px; }
+        .scene-card .video-box { inset:8px; }
+        .scene-overlay { left:20px; right:20px; bottom:20px; }
+        .scene-title-lockup { max-width:100%; }
+        .scene-status { display:none; }
+      }
+
+      @media (max-width: 760px) {
+        .content { padding: 10px; }
+        .overview-shell { grid-template-columns: 1fr; min-height: auto; }
+        .overview-copy, .overview-visual { padding: 16px; }
+        .info-boxes, .visual-meta { grid-template-columns: 1fr; }
+        .video-box { height: min(62vw, 360px); min-height: 220px; }
+        dl { grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr); }
+        .sidebar { padding: 10px; }
+        .sidebar-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+        .nav-item { min-width: 0; padding: 10px 8px; font-size: 0.84rem; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <nav class="sidebar-nav" aria-label="Cogniv workspace sections">
+          <button class="nav-item active" data-target="overview" aria-current="page">🏠 Overview</button>
+          <button class="nav-item" data-target="gameplay">🎮 Memory scene</button>
+          <button class="nav-item" data-target="patient">👤 Patient</button>
+          <button class="nav-item" data-target="folder">📁 Folder</button>
+          <button class="nav-item" data-target="upload">⬆️ Upload</button>
+          <button class="nav-item" data-target="build">🧩 Build story</button>
+          <button class="nav-item" data-target="videos">🎬 Videos</button>
+          <button class="nav-item" data-target="reminders">⏰ Reminders</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <div id="healthBadge" class="health-badge" role="status" aria-live="polite">Connecting to backend...</div>
+
+        <section id="overview" class="panel active">
+          <div class="overview-shell">
+            <div class="card overview-copy">
+              <div class="chat-panel">
+                <div class="chat-header">
+                  <div class="chat-header-title">Memory chat</div>
+                  <div class="status-dot" aria-label="system active"></div>
+                </div>
+
+                <div class="chat-history">
+                  <div class="chat-message bot">Hi, I can turn your memory prompt into a grounded story scene and generate a video scene from it.</div>
+                  <div class="chat-message bot">Try: “Lakshmi picking jasmine flowers in the morning”</div>
+                  <div class="chat-message user">Generate the memory scene for Lakshmi.</div>
+                </div>
+
+                <div class="chat-input-wrap">
+                  <label for="commandLanguage" style="display:block; margin-bottom:6px; color:var(--muted);">Question language</label>
+                  <select id="commandLanguage" aria-label="Question language" style="width:100%; margin-bottom:8px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; color:var(--text);">
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="te">Telugu</option>
+                    <option value="ta">Tamil</option>
+                    <option value="kn">Kannada</option>
+                  </select>
+                  <select id="storyPromptSelect" aria-label="Choose a memory story" style="width:100%; margin-bottom:8px;">
+                    <option value="">Choose a memory story</option>
+                  </select>
+                  <textarea id="caregiverPrompt" placeholder="Example: Show Lakshmi's jasmine morning memory in a warm, comforting scene.">Show Lakshmi's jasmine morning memory.</textarea>
+                  <div class="button-row" style="margin-top:0;">
+                    <button id="resolveGroundingBtn" class="secondary">Resolve</button>
+                    <button id="generateGroundedVideoBtn">Generate scene</button>
+                    <button id="speakQuestionBtn" class="secondary" type="button">Speak question</button>
+                  </div>
+                  <div id="videoStatus" class="muted" role="status" aria-live="polite" style="margin-top: 2px;">No generation started.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card overview-visual scene-stage">
+              <div class="scene-stage-header">
+                <div>
+                  <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#6b5c86; font-weight:700;">Live chapter</div>
+                  <div id="chapterTitle" style="font-size:1.4rem; font-weight:700; margin-top:6px;">The Jasmine Morning</div>
+                </div>
+                <div class="scene-badge"><span class="scene-status-dot"></span> Ready</div>
+              </div>
+
+              <div class="video-box">
+                <video id="gameVideo" controls aria-label="Memory scene video"></video>
+              </div>
+
+              <div id="gameNarration" class="muted" style="min-height: 42px; line-height: 1.6;">No scene yet. Type a prompt on the left and generate the story video.</div>
+              <div id="gameProgressGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;"></div>
+              <div id="gameTimeline" class="muted" style="min-height: 24px;">Story grounded scene will appear here.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="patient" class="panel">
+          <div class="card">
+            <h2>Patient</h2>
+            <dl>
+              <dt>Patient ID</dt>
+              <dd><strong>lakshmi_001</strong></dd>
+              <dt>Name</dt>
+              <dd id="patientName">loading...</dd>
+              <dt>Story</dt>
+              <dd id="patientStory">loading...</dd>
+            </dl>
+            <div class="button-row">
+              <button id="loadPatientBtn">Load patient</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="folder" class="panel">
+          <div class="card">
+            <h2>Patient folder</h2>
+            <div id="folderSummary" class="muted">No folder loaded.</div>
+            <div class="grid" style="margin-top: 16px;">
+              <div class="summary-chip">
+                <strong id="folderDocCount">0</strong>
+                <span>Documents</span>
+              </div>
+              <div class="summary-chip">
+                <strong id="folderImageCount">0</strong>
+                <span>Images</span>
+              </div>
+              <div class="summary-chip">
+                <strong id="folderVoiceStatus">No</strong>
+                <span>Voice</span>
+              </div>
+            </div>
+            <ul id="folderList" class="asset-list"></ul>
+            <div class="button-row">
+              <button id="loadFolderBtn" class="secondary">Refresh folder</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="upload" class="panel">
+          <div class="card">
+            <h2>Upload content</h2>
+            <div class="upload-wrap">
+              <label>Story bundle (all 5 files)</label>
+              <input id="patientBundleInput" type="file" multiple accept=".txt,.pdf,.doc,.docx,image/*,audio/*" />
+              <button id="uploadBundleBtn" class="secondary">Upload story bundle</button>
+
+              <label for="voiceInput">Voice story</label>
+              <input id="voiceInput" type="file" accept="audio/*" class="voice-file-input" />
+              <label class="file-picker" for="voiceInput">🎧 Choose an audio file</label>
+              <span id="voiceFileName" class="file-name">No audio file selected.</span>
+              <button id="recordVoiceStoryBtn" class="action-button">
+                <span class="icon-wrap">🎙️</span>
+                <span>Record voice story</span>
+              </button>
+              <button id="uploadVoiceBtn" class="secondary action-button">
+                <span class="icon-wrap">💾</span>
+                <span>Save recorded voice</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="build" class="panel">
+          <div class="card">
+            <h2>Story build</h2>
+            <div id="buildStatus" class="muted">Not built yet.</div>
+            <div class="grid" style="margin-top: 18px;">
+              <div class="summary-chip"><strong id="buildDocCount">0</strong><span>Docs</span></div>
+              <div class="summary-chip"><strong id="buildImageCount">0</strong><span>Images</span></div>
+              <div class="summary-chip"><strong id="buildStatusText">Idle</strong><span>Build</span></div>
+            </div>
+            <div class="button-row">
+              <button id="buildStoryBtn" class="success">Build patient story</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="videos" class="panel">
+          <div class="card">
+            <h2>Video generation</h2>
+            <p class="muted" style="margin-top: 0;">
+              Video scenes are generated from the story prompt plus the uploaded patient evidence such as scanned PDFs,
+              DOCX files, and relevant image folders.
+            </p>
+            <textarea id="legacyCaregiverPrompt" placeholder="Example: Show Lakshmi's jasmine morning memory in a warm, comforting scene.">Show Lakshmi's jasmine morning memory.</textarea>
+            <div id="legacyVideoStatus" class="muted" style="margin-top: 12px;">No generation started.</div>
+            <ul id="videoList" class="video-list"></ul>
+            <div class="button-row">
+              <button id="generateVideosBtn" class="action-button">
+                <span class="icon-wrap">🎬</span>
+                <span>Generate video</span>
+              </button>
+              <button id="refreshVideosBtn" class="secondary action-button">
+                <span class="icon-wrap">🔄</span>
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="gameplay" class="panel">
+          <div class="card">
+            <div class="adventure-header">
+              <div>
+                <div class="adventure-kicker">Cogniv memory adventure</div>
+                <h2>Walk through a living memory</h2>
+              </div>
+              <div class="player-hud" aria-label="Memory adventure progress">
+                <div class="hud-chip"><strong id="xpValue">0</strong><span>Memory XP</span></div>
+                <div class="hud-chip"><strong id="sceneCountValue">0</strong><span>Scenes</span></div>
+                <div class="hud-chip"><strong id="badgeCountValue">0/5</strong><span>Badges</span></div>
+              </div>
+            </div>
+            <div id="memoryFeedback" class="memory-feedback" aria-live="polite" aria-label="Memory response feedback">💬</div>
+            <p class="muted" style="margin-top: 0;">
+              Guided memory session: the patient is invited to respond naturally while the system preserves evidence and creates an evidence-based caregiver report.
+            </p>
+            <div class="flow-mini-list" style="margin: 12px 0 16px;">
+              <span>🧠 Evidence</span>
+              <span>→</span>
+              <span>🎬 Memory scene</span>
+              <span>→</span>
+              <span>🗣️ Response</span>
+              <span>→</span>
+              <span>📄 Report</span>
+            </div>
+              <div class="button-row">
+              <div id="commandPrompt" style="grid-column:1 / -1; padding:14px 16px; border-left:4px solid var(--accent-3); border-radius:10px; background:rgba(236,72,153,.08); color:var(--text);">
+                <strong>2. Your turn</strong>
+                <div id="commandPromptText" style="margin-top:6px;">Start a memory scene to receive a story-based command.</div>
+                <div id="commandExamples" class="muted" style="margin-top:8px; font-size:.86rem;">Examples: “start the memory”, “next scene”, “repeat”, or “finish”.</div>
+              </div>
+              <button id="voiceCommandBtn" class="secondary action-button" aria-label="Speak an app command">
+                <span class="icon-wrap">🎙️</span>
+                <span>Voice command</span>
+              </button>
+              <button id="startGameBtn" class="action-button" aria-label="Start memory scene">
+                <span class="icon-wrap">
+                  <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5,3 19,12 5,21"></polygon></svg>
+                </span>
+                <span>Start memory scene</span>
+              </button>
+              <button id="playNextBtn" class="secondary action-button" aria-label="Move to the next memory beat">
+                <span class="icon-wrap">⏭️</span>
+                <span>Next memory beat</span>
+              </button>
+              <button id="replayBtn" class="secondary action-button" aria-label="Replay the current scene">
+                <span class="icon-wrap">🔁</span>
+                <span>Replay scene</span>
+              </button>
+            </div>
+
+            <div id="gameBeatInfo" class="muted" style="margin-top: 12px;">Session not started.</div>
+            <div id="chapterHud" style="margin-top:12px; padding:12px 14px; border-radius:14px; background:linear-gradient(135deg, rgba(168,85,247,0.12), rgba(236,72,153,0.12)); border:1px solid rgba(168,85,247,0.24); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+              <div>
+                <div style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#6b5c86;">Chapter</div>
+                <div id="legacyChapterTitle" style="font-size:1.2rem; font-weight:700; margin-top:4px;">Jasmine Morning</div>
+              </div>
+              <div id="chapterBadge" style="padding:8px 12px; border-radius:999px; background:rgba(16,185,129,.12); color:#0f766e; font-weight:700;">Ready</div>
+            </div>
+            <div id="legacyGameMemoryPath" class="muted" style="margin-top:12px; line-height:1.8;"></div>
+            <div id="legacyGameProgressGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px;"></div>
+            <div id="legacyGameTimeline" class="muted" style="margin-top:10px; min-height: 32px;"></div>
+            <div class="adventure-layout">
+              <div class="scene-card">
+                <div class="video-box">
+                  <video id="legacyGameVideo" controls aria-label="Memory scene video"></video>
+                </div>
+                <div class="scene-overlay">
+                  <div class="scene-title-lockup">
+                    <small id="sceneChapterLabel">Current chapter</small>
+                    <strong id="sceneTitleLabel">Your memory scene awaits</strong>
+                  </div>
+                  <div class="scene-status" id="sceneStatusLabel">Ready to begin</div>
+                </div>
+              </div>
+              <aside class="adventure-sidebar">
+                <div class="quest-card">
+                  <div class="panel-label">Active memory quest</div>
+                  <h3 id="questTitle">Begin the journey</h3>
+                  <p id="questText">Choose a story and start the first scene to reveal the next prompt.</p>
+                  <div class="quest-reward">✦ +25 memory XP for participation</div>
+                </div>
+                <div class="chapter-card">
+                  <div class="panel-label">Chapter trail</div>
+                  <h3 id="adventureChapterTitle">Your memory map</h3>
+                  <div id="adventurePath" class="memory-path-adventure"></div>
+                </div>
+                <div class="badge-card">
+                  <div class="panel-label">Collected keepsakes</div>
+                  <h3>Badges</h3>
+                  <div id="adventureBadges" class="badge-row">
+                    <div class="badge">🌱</div><div class="badge locked">🌼</div><div class="badge locked">🥭</div><div class="badge locked">🏅</div><div class="badge locked">✨</div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+            <div id="legacyGameNarration" class="muted" style="margin-top: 12px;"></div>
+            <div class="button-row">
+              <button id="recordInteractionBtn" class="action-button" aria-label="Record or type the patient response">
+                <span class="icon-wrap">🎙️</span>
+                <span>Tell the memory</span>
+              </button>
+              <button id="submitTypedResponseBtn" class="secondary action-button" aria-label="Submit typed patient response">
+                <span class="icon-wrap">⌨️</span>
+                <span>Submit typed answer</span>
+              </button>
+              <button id="continueBtn" class="secondary action-button" aria-label="Continue without recording a response">
+                <span class="icon-wrap">→</span>
+                <span>Continue</span>
+              </button>
+              <button id="endSessionBtn" class="secondary action-button" aria-label="Finish and create the care report">
+                <span class="icon-wrap">✅</span>
+                <span>End care report</span>
+              </button>
+            </div>
+            <textarea id="patientTranscript" aria-label="Patient transcript input" placeholder="Add the patient response here as evidence for the caregiver review." style="margin-top: 12px;"></textarea>
+            <div id="reportStatus" class="muted" style="margin-top: 12px;">Responses are compared with the original story evidence and saved for caregiver review.</div>
+            <div id="liveMemoryScore" class="memory-score" hidden>
+              <div><strong id="memoryScoreValue">0%</strong><br><span id="memoryScoreLabel">No scored responses yet</span></div>
+              <span>Story evidence match</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="reminders" class="panel">
+          <div class="card">
+            <h2>Reminders & difference report</h2>
+            <div class="grid" style="margin-top: 12px;">
+              <div class="summary-chip">
+                <strong id="reminderStatusText">No reminder</strong>
+                <span>Reminder</span>
+              </div>
+              <div class="summary-chip">
+                <strong id="reportCountText">0</strong>
+                <span>Reports</span>
+              </div>
+              <div class="summary-chip">
+                <strong id="dbStatusText">Local</strong>
+                <span>Storage</span>
+              </div>
+            </div>
+            <div id="reminderPanel" class="muted" style="margin-top: 16px;">No reminder is active yet.</div>
+            <div id="reminderVideoSchedule" class="muted" style="margin-top: 12px;">Reminder videos will be prepared 15 minutes before each scheduled cue.</div>
+            <div class="button-row">
+              <button id="triggerReminderBtn" class="secondary action-button">
+                <span class="icon-wrap">⏰</span>
+                <span>Trigger reminder</span>
+              </button>
+              <button id="downloadReportBtn" class="secondary action-button">
+                <span class="icon-wrap">📄</span>
+                <span>Download report</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div id="log" class="log" style="display:none;">System ready.</div>
+      </main>
+    </div>
+
+    <script>
+      const patientId = 'lakshmi_001';
+      let sessionId = null;
+      let currentBeat = null;
+      let mediaRecorder = null;
+      let recordedAudioChunks = [];
+      let isVoiceRecording = false;
+      let voiceStoryRecorder = null;
+      let voiceStoryChunks = [];
+      let isVoiceStoryRecording = false;
+      let commandRecorder = null;
+      let commandChunks = [];
+      let isCommandRecording = false;
+      let activeSessionPoller = null;
+      let autoRefreshEnabled = false;
+      let lastSpokenQuestionKey = null;
+      let pendingQuestionSpeech = null;
+      const ui = {
+        healthBadge: document.getElementById('healthBadge'),
+        patientName: document.getElementById('patientName'),
+        patientStory: document.getElementById('patientStory'),
+        folderSummary: document.getElementById('folderSummary'),
+        folderList: document.getElementById('folderList'),
+        folderDocCount: document.getElementById('folderDocCount'),
+        folderImageCount: document.getElementById('folderImageCount'),
+        folderVoiceStatus: document.getElementById('folderVoiceStatus'),
+        buildStatus: document.getElementById('buildStatus'),
+        buildDocCount: document.getElementById('buildDocCount'),
+        buildImageCount: document.getElementById('buildImageCount'),
+        buildStatusText: document.getElementById('buildStatusText'),
+        videoStatus: document.getElementById('videoStatus'),
+        videoList: document.getElementById('videoList'),
+        voiceFileName: document.getElementById('voiceFileName'),
+        gameBeatInfo: document.getElementById('gameBeatInfo'),
+        chapterHud: document.getElementById('chapterHud'),
+        chapterTitle: document.getElementById('chapterTitle') || document.getElementById('legacyChapterTitle'),
+        chapterBadge: document.getElementById('chapterBadge'),
+        gameMemoryPath: document.getElementById('legacyGameMemoryPath') || document.getElementById('gameMemoryPath'),
+        gameProgressGrid: document.getElementById('legacyGameProgressGrid') || document.getElementById('gameProgressGrid'),
+        gameTimeline: document.getElementById('legacyGameTimeline') || document.getElementById('gameTimeline'),
+        gameNarration: document.getElementById('legacyGameNarration') || document.getElementById('gameNarration'),
+        gameVideo: document.getElementById('gameVideo') || document.getElementById('legacyGameVideo'),
+        legacyGameVideo: document.getElementById('legacyGameVideo'),
+        reminderStatusText: document.getElementById('reminderStatusText'),
+        reminderPanel: document.getElementById('reminderPanel'),
+        reportCountText: document.getElementById('reportCountText'),
+        dbStatusText: document.getElementById('dbStatusText'),
+        log: document.getElementById('log'),
+        caregiverPrompt: document.getElementById('caregiverPrompt'),
+        patientTranscript: document.getElementById('patientTranscript'),
+        reportStatus: document.getElementById('reportStatus'),
+        memoryFeedback: document.getElementById('memoryFeedback'),
+        liveMemoryScore: document.getElementById('liveMemoryScore'),
+        memoryScoreValue: document.getElementById('memoryScoreValue'),
+        memoryScoreLabel: document.getElementById('memoryScoreLabel'),
+        reminderVideoSchedule: document.getElementById('reminderVideoSchedule')
+      };
+
+      function log(message) {
+        // Keep the UI clean: historical backend debug output is suppressed from the visible frontend log.
+        return;
+      }
+
+      function activatePanel(targetId) {
+        document.querySelectorAll('.nav-item').forEach((button) => {
+          const isActive = button.dataset.target === targetId;
+          button.classList.toggle('active', isActive);
+          if (isActive) {
+            button.setAttribute('aria-current', 'page');
+          } else {
+            button.removeAttribute('aria-current');
+          }
+        });
+
+        document.querySelectorAll('.panel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === targetId);
+        });
+      }
+
+      const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:8000' : '';
+
+      function apiUrl(path) {
+        return `${API_BASE}${path}`;
+      }
+
+      async function api(path, options = {}) {
+        const response = await fetch(apiUrl(path), {
+          headers: { 'Accept': 'application/json', ...(options.headers || {}) },
+          ...options,
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        const text = await response.text();
+
+        if (!text) {
+          return null;
+        }
+
+        if (!contentType.includes('application/json')) {
+          throw new Error(
+            `Backend API is not responding with JSON. Received ${response.status} ${contentType || 'unknown content type'} from ${path}. ` +
+            'This usually means a static file server is running instead of the FastAPI backend.'
+          );
+        }
+
+        const data = JSON.parse(text);
+
+        if (!response.ok) {
+          const detail = data && (data.detail || data.error || JSON.stringify(data));
+          throw new Error(detail || `Request failed: ${response.status}`);
+        }
+
+        return data;
+      }
+
+      async function loadHealth() {
+        if (ui.healthBadge) {
+          try {
+            const health = await api('/api/health');
+            ui.healthBadge.textContent = `${health.service} • ${health.status}`;
+            ui.healthBadge.style.color = '#0f766e';
+            ui.healthBadge.style.borderColor = 'rgba(16, 185, 129, 0.26)';
+            log(`Backend health OK: ${JSON.stringify(health)}`);
+          } catch (error) {
+            ui.healthBadge.textContent = 'Backend offline';
+            ui.healthBadge.style.color = '#b91c1c';
+            ui.healthBadge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            log(`Health check failed: ${error.message}`);
+          }
+        }
+
+        if (ui.dbStatusText) {
+          try {
+            const system = await api('/api/system/status');
+            ui.dbStatusText.textContent = system.storage_mode === 'mongodb-atlas' ? 'MongoDB' : 'Local';
+          } catch (error) {
+            ui.dbStatusText.textContent = 'Local';
+          }
+        }
+      }
+
+      async function loadPatient() {
+        try {
+          const patient = await api(`/api/patients/${patientId}`);
+          ui.patientName.textContent = patient.name || patient.patient_id;
+          ui.patientStory.textContent = patient.story_id || 'n/a';
+          log(`Loaded patient: ${JSON.stringify(patient)}`);
+        } catch (error) {
+          log(`Patient load failed: ${error.message}`);
+        }
+      }
+
+      async function resolveGrounding() {
+        const prompt = ui.caregiverPrompt.value.trim();
+        if (!prompt) {
+          alert('Please enter a caregiver prompt first.');
+          return;
+        }
+
+        try {
+          const result = await api('/api/grounding/resolve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patient_id: patientId, prompt }),
+          });
+          log(`Grounding resolved: ${JSON.stringify(result)}`);
+          ui.reportStatus.textContent = result.match
+            ? `Grounded to: ${result.scene_plan?.story_id || 'matched story'} / ${result.scene_plan?.beat_id || 'beat'}`
+            : `No grounded story match: ${result.reason || 'unknown reason'}`;
+        } catch (error) {
+          log(`Grounding resolution failed: ${error.message}`);
+        }
+      }
+
+      let storyTitleById = {
+        jasmine_morning: 'The Jasmine Morning',
+        mango_tree: 'The Mango Tree',
+        rainy_day_kitchen: 'The Rainy-Day Kitchen',
+        school_morning: 'The School Morning',
+        railway_station: 'The Railway Station',
+      };
+      let storyPromptById = {};
+
+      async function loadStories() {
+        try {
+          const stories = await api('/api/stories');
+          storyTitleById = Object.fromEntries(stories.map((story) => [story.id, story.title]));
+          storyPromptById = Object.fromEntries(stories.map((story) => [story.id, story.prompt || '']));
+          const select = document.getElementById('storyPromptSelect');
+          if (!select) return;
+          select.innerHTML = '<option value="">Choose a memory story</option>';
+          stories.forEach((story) => {
+            const option = document.createElement('option');
+            option.value = story.id;
+            option.textContent = story.title;
+            select.appendChild(option);
+          });
+          select.addEventListener('change', () => {
+            const prompt = storyPromptById[select.value];
+            if (prompt) ui.caregiverPrompt.value = prompt;
+          });
+        } catch (error) {
+          log(`Story catalog load failed: ${error.message}`);
+        }
+      }
+
+      function syncSceneVideo(videoUrl, previewUrl) {
+        const urls = [ui.gameVideo, ui.legacyGameVideo].filter(Boolean);
+        const finalVideoUrl = videoUrl || '';
+        const finalPreviewUrl = previewUrl || '';
+
+        for (const videoElement of urls) {
+          const hasVideo = !!finalVideoUrl;
+          const hasPreviewImage = !!finalPreviewUrl && !hasVideo;
+
+          if (hasVideo) {
+            if (videoElement.getAttribute('src') !== finalVideoUrl) {
+              videoElement.src = finalVideoUrl;
+              if (finalPreviewUrl) videoElement.poster = finalPreviewUrl;
+              videoElement.load();
+              videoElement.play().catch(() => {});
+            }
+            if (finalPreviewUrl) videoElement.poster = finalPreviewUrl;
+            videoElement.style.display = 'block';
+            videoElement.setAttribute('playsinline', 'true');
+            continue;
+          }
+
+          if (hasPreviewImage) {
+            videoElement.pause();
+            videoElement.removeAttribute('src');
+            videoElement.load();
+            videoElement.poster = finalPreviewUrl;
+            videoElement.style.display = 'block';
+            videoElement.setAttribute('playsinline', 'true');
+            continue;
+          }
+
+          videoElement.style.display = 'block';
+        }
+      }
+
+      function speakSceneQuestionForScene(beatId, question, force = false) {
+        if (!beatId || !question || !('speechSynthesis' in window)) return;
+        const key = `${beatId}:${selectedLanguage()}:${question}`;
+        if (!force && key === lastSpokenQuestionKey) return;
+        lastSpokenQuestionKey = key;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
+        const language = selectedLanguage();
+        const utterance = new SpeechSynthesisUtterance(question);
+        const locale = speechLocale(language);
+        utterance.lang = locale;
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find((candidate) => candidate.lang?.toLowerCase().startsWith(locale.toLowerCase()))
+          || voices.find((candidate) => candidate.lang?.toLowerCase().startsWith(language.toLowerCase()));
+        if (language !== 'en' && !voice) {
+          pendingQuestionSpeech = { beatId, question };
+          ui.reportStatus.textContent = `No ${language.toUpperCase()} voice is installed in this browser. Choose another language or install a ${locale} voice.`;
+          return;
+        }
+        pendingQuestionSpeech = null;
+        if (voice) utterance.voice = voice;
+        utterance.rate = 0.78;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+        utterance.onstart = () => { ui.reportStatus.textContent = `Speaking question in ${language.toUpperCase()}...`; };
+        utterance.onerror = (event) => { ui.reportStatus.textContent = `Voice playback unavailable: ${event.error || 'unknown error'}`; };
+        utterance.onend = () => { ui.reportStatus.textContent = 'Your answer is needed for this scene.'; };
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function speakGuidance(text) {
+        if (!text || !('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = speechLocale(document.getElementById('commandLanguage')?.value || 'en');
+        utterance.rate = 0.82;
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function speechLocale(language) {
+        return {
+          en: 'en-IN', hi: 'hi-IN', te: 'te-IN', ta: 'ta-IN', kn: 'kn-IN',
+          ml: 'ml-IN', mr: 'mr-IN', bn: 'bn-IN', gu: 'gu-IN', pa: 'pa-IN',
+          ur: 'ur-IN', or: 'or-IN', as: 'as-IN'
+        }[language] || 'en-IN';
+      }
+
+      function selectedLanguage() {
+        return document.getElementById('commandLanguage')?.value || 'en';
+      }
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.addEventListener('voiceschanged', () => {
+          if (pendingQuestionSpeech) {
+            const pending = pendingQuestionSpeech;
+            speakSceneQuestionForScene(pending.beatId, pending.question, true);
+          }
+        });
+      }
+
+      async function updateSessionLanguage(language) {
+        if (!sessionId) return;
+        const session = await api(`/api/game/sessions/${sessionId}/language`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language }),
+        });
+        const questionLanguage = session.question_language || language;
+        currentBeat = { ...(currentBeat || {}), question: session.current_question, question_language: questionLanguage };
+        applySessionVideo(session);
+        updateCommandPrompt(session.current_question, questionLanguage);
+        ui.gameNarration.textContent = session.current_question || '';
+        lastSpokenQuestionKey = null;
+        speakSceneQuestionForScene(session.current_beat_id, session.current_question || '');
+        if (questionLanguage !== language) {
+          ui.reportStatus.textContent = `Question text is currently available in English; voice locale remains ${language.toUpperCase()}.`;
+        }
+      }
+
+      function applySessionVideo(session) {
+        const videoUrl = session?.video_url || session?.current_video_url || '';
+        const previewUrl = session?.preview_url || session?.video?.preview_url || '';
+        syncSceneVideo(videoUrl, previewUrl);
+      }
+
+      function scheduleSessionPolling() {
+        if (activeSessionPoller) {
+          clearInterval(activeSessionPoller);
+        }
+
+        if (!sessionId) {
+          return;
+        }
+
+        autoRefreshEnabled = true;
+        activeSessionPoller = window.setInterval(async () => {
+          if (!sessionId) return;
+          try {
+            const session = await api(`/api/game/sessions/${sessionId}`);
+            const videoUrl = session?.video_url || session?.current_video_url || '';
+            const previewUrl = session?.preview_url || session?.video?.preview_url || '';
+            if (session && session.status && session.status !== 'completed') {
+              ui.gameNarration.textContent = session.current_question || ui.gameNarration.textContent || 'Waiting for the scene question.';
+              if (videoUrl) {
+                applySessionVideo(session);
+                ui.videoStatus.textContent = `Scene ready: ${session.current_beat_id || 'beat'} • video generated`;
+              } else if (previewUrl) {
+                syncSceneVideo('', previewUrl);
+                ui.videoStatus.textContent = `Rendering ${session.current_beat_id || 'beat'}... preview is live while Pixazo finishes`;
+              } else if (session.current_beat_id) {
+                ui.videoStatus.textContent = `Rendering ${session.current_beat_id}... faster preview is being prepared`;
+              }
+            }
+            if (session && session.video_url && session.video_url !== videoUrl) {
+              syncSceneVideo(session.video_url, previewUrl);
+            }
+          } catch (error) {
+            log(`Session poll failed: ${error.message}`);
+          }
+        }, 2000);
+      }
+
+      async function loadSessionState() {
+        if (!sessionId) return;
+        try {
+          const session = await api(`/api/game/sessions/${sessionId}`);
+          const storyId = session.story_id || 'jasmine_morning';
+          const beatId = session.current_beat_id || 'current beat';
+          const chapterTitle = storyTitleById[storyId] || 'Memory Chapter';
+
+          if (ui.chapterTitle) ui.chapterTitle.textContent = chapterTitle;
+          if (ui.gameNarration) ui.gameNarration.textContent = session.current_question || 'The scene question is ready.';
+          if (ui.gameTimeline) ui.gameTimeline.textContent = `${session.story_id || 'story'} • ${beatId} • ${session.status || 'ready'}`;
+
+          applySessionVideo(session);
+          lastSpokenQuestionKey = null;
+          speakSceneQuestionForScene(session.current_beat_id, session.current_question || '');
+
+          if (session.progress) {
+            renderGameProgress(session.progress, session.story_progression || {}, session.caregiver_guidance || ['Start the memory scene']);
+          }
+
+          scheduleSessionPolling();
+        } catch (error) {
+          log(`Session state failed: ${error.message}`);
+        }
+      }
+
+      async function generateGroundedVideo() {
+        const prompt = ui.caregiverPrompt.value.trim();
+        if (!prompt) {
+          alert('Please enter a caregiver prompt first.');
+          return;
+        }
+
+        try {
+          const gameStart = await api('/api/game/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patient_id: patientId, prompt, narration_language: selectedLanguage() }),
+          });
+
+          sessionId = gameStart.session_id;
+          log(`Game session started: ${JSON.stringify(gameStart)}`);
+          ui.videoStatus.textContent = `Local story video: ${gameStart.story_id || 'matched story'} • ready to play`;
+          ui.gameNarration.textContent = gameStart.message || 'The memory scene has started.';
+          ui.chapterTitle.textContent = storyTitleById[gameStart.story_id] || 'Memory Chapter';
+          activatePanel('gameplay');
+          scheduleSessionPolling();
+          await loadSessionState();
+          await refreshVideos();
+        } catch (error) {
+          log(`Local story playback failed: ${error.message}`);
+          ui.videoStatus.textContent = `Local story playback failed: ${error.message}`;
+        }
+      }
+
+      async function loadFolder() {
+        try {
+          const folder = await api(`/api/patients/${patientId}/folder`);
+          const docs = folder.documents?.length ?? 0;
+          const images = folder.image_assets?.length ?? 0;
+          const voice = folder.voice_story ? 'Yes' : 'No';
+          ui.folderSummary.textContent = `Stories: ${docs} • Images: ${images} • Voice: ${voice}`;
+          ui.folderDocCount.textContent = String(docs);
+          ui.folderImageCount.textContent = String(images);
+          ui.folderVoiceStatus.textContent = voice;
+
+          ui.folderList.innerHTML = '';
+          const items = [
+            ...(folder.documents || []).map((doc) => ({
+              label: `Story document: ${doc.name}`,
+              url: doc.url || `/patient-library/${doc.relative_path || doc.name}`,
+            })),
+            ...(folder.image_assets || []).map((asset) => ({
+              label: `Image: ${asset.relative_path || asset.name}`,
+              url: asset.url || `/patient-library/${asset.relative_path || asset.name}`,
+            })),
+            ...(folder.voice_story ? [{ label: `Voice: ${folder.voice_story.name}`, url: folder.voice_story.url || '/patient-library/' + (folder.voice_story.relative_path || folder.voice_story.name) }] : []),
+            ...(folder.voice_transcript ? [{ label: `Transcript: ${folder.voice_transcript.name}`, url: folder.voice_transcript.url || '/patient-library/' + (folder.voice_transcript.relative_path || folder.voice_transcript.name) }] : []),
+          ];
+
+          if (!items.length) {
+            const li = document.createElement('li');
+            li.textContent = 'No files uploaded yet.';
+            ui.folderList.appendChild(li);
+          }
+
+          items.forEach((item) => {
+            const li = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = item.url || '#';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = item.label;
+            li.appendChild(link);
+            ui.folderList.appendChild(li);
+          });
+
+          log(`Folder refreshed: ${JSON.stringify(folder)}`);
+        } catch (error) {
+          log(`Folder failed: ${error.message}`);
+        }
+      }
+
+      async function uploadBundle() {
+        const input = document.getElementById('patientBundleInput');
+        const files = Array.from(input.files || []);
+        if (!files.length) {
+          alert('Please select the patient bundle files first.');
+          return;
+        }
+
+        const formData = new FormData();
+        const relativePaths = files.map((file) => file.webkitRelativePath || file.name);
+        files.forEach((file) => formData.append('files', file, file.name));
+        formData.append('relative_paths', JSON.stringify(relativePaths));
+
+        try {
+          const result = await api(`/api/patients/${patientId}/folder/bundle`, {
+            method: 'POST',
+            body: formData,
+          });
+          log(`Bundle uploaded: ${JSON.stringify(result)}`);
+          input.value = '';
+          await loadFolder();
+        } catch (error) {
+          log(`Bundle upload failed: ${error.message}`);
+          alert(error.message);
+        }
+      }
+
+      async function uploadDocument() {
+        const input = document.getElementById('storyDocumentInput');
+        const file = input.files[0];
+        if (!file) {
+          alert('Please select a story document first.');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('document', file);
+
+        try {
+          const result = await api(`/api/patients/${patientId}/folder/story-document`, {
+            method: 'POST',
+            body: formData,
+          });
+          log(`Document uploaded: ${JSON.stringify(result)}`);
+          await loadFolder();
+        } catch (error) {
+          log(`Document upload failed: ${error.message}`);
+        }
+      }
+
+      async function uploadImages() {
+        const input = document.getElementById('imagesInput');
+        const files = Array.from(input.files || []);
+        if (!files.length) {
+          alert('Please select an image folder first.');
+          return;
+        }
+
+        const formData = new FormData();
+        const relativePaths = [];
+
+        files.forEach((file) => {
+          const relativePath = file.webkitRelativePath || file.name;
+          relativePaths.push(relativePath);
+          formData.append('images', file, file.name);
+        });
+
+        formData.append('relative_paths', JSON.stringify(relativePaths));
+
+        try {
+          const result = await api(`/api/patients/${patientId}/folder/images`, {
+            method: 'POST',
+            body: formData,
+          });
+          log(`Images uploaded: ${JSON.stringify(result)}`);
+          await loadFolder();
+        } catch (error) {
+          log(`Image upload failed: ${error.message}`);
+        }
+      }
+
+      function setVoiceStoryButtonState(recording) {
+        const button = document.getElementById('recordVoiceStoryBtn');
+        if (!button) return;
+        if (recording) {
+          button.innerHTML = '<span class="icon-wrap">🛑</span><span>Stop recording</span>';
+          button.classList.add('success');
+        } else {
+          button.innerHTML = '<span class="icon-wrap">🎙️</span><span>Record voice story</span>';
+          button.classList.remove('success');
+        }
+      }
+
+      async function uploadVoice(audioBlob = null) {
+        const input = document.getElementById('voiceInput');
+        let file = audioBlob ? new File([audioBlob], `voice_story_${patientId}_${Date.now()}.webm`, { type: audioBlob.type || 'audio/webm' }) : input.files[0];
+
+        if (!file) {
+          alert('Please record a voice story or select a voice file first.');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('audio', file);
+
+        try {
+          const result = await api(`/api/patients/${patientId}/folder/voice`, {
+            method: 'POST',
+            body: formData,
+          });
+          log(`Voice uploaded: ${JSON.stringify(result)}`);
+          await loadFolder();
+          ui.videoStatus.textContent = 'Voice story saved to patient library.';
+        } catch (error) {
+          log(`Voice upload failed: ${error.message}`);
+        }
+      }
+
+      async function toggleVoiceStoryRecording() {
+        if (isVoiceStoryRecording) {
+          if (voiceStoryRecorder) {
+            voiceStoryRecorder.stop();
+          }
+          isVoiceStoryRecording = false;
+          setVoiceStoryButtonState(false);
+          return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert('Microphone access is not supported in this browser. Please upload a voice file instead.');
+          return;
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          voiceStoryChunks = [];
+          voiceStoryRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+          voiceStoryRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              voiceStoryChunks.push(event.data);
+            }
+          };
+          voiceStoryRecorder.onstop = async () => {
+            const blob = new Blob(voiceStoryChunks, { type: voiceStoryRecorder.mimeType || 'audio/webm' });
+            stream.getTracks().forEach((track) => track.stop());
+            await uploadVoice(blob);
+          };
+          voiceStoryRecorder.start();
+          isVoiceStoryRecording = true;
+          setVoiceStoryButtonState(true);
+        } catch (error) {
+          log(`Voice story recording failed: ${error.message}`);
+          alert('Microphone permission is required to record the voice story.');
+        }
+      }
+
+      async function buildStory() {
+        try {
+          const build = await api(`/api/patients/${patientId}/story/build`, { method: 'POST' });
+          const summary = build.build_summary || {};
+          ui.buildStatus.textContent = `Build status: ${build.status || 'completed'} • ${JSON.stringify(summary)}`;
+          ui.buildDocCount.textContent = String(summary.documents_found ?? 0);
+          ui.buildImageCount.textContent = String(summary.images_found ?? 0);
+          ui.buildStatusText.textContent = (build.status || 'completed').toString();
+          log(`Story build: ${JSON.stringify(build)}`);
+        } catch (error) {
+          log(`Build failed: ${error.message}`);
+        }
+      }
+
+      async function refreshVideos() {
+        try {
+          const jobs = await api(`/api/patients/${patientId}/videos`);
+          const sortOrder = { completed: 0, processing: 1, queued: 2, waiting: 3, failed: 4 };
+          jobs.sort((a, b) => (sortOrder[a.status] ?? 99) - (sortOrder[b.status] ?? 99));
+          ui.videoStatus.textContent = `Videos: ${jobs.length} job(s)`;
+          ui.videoList.innerHTML = '';
+          jobs.forEach((job) => {
+            const li = document.createElement('li');
+            li.textContent = `${job.story_id} / ${job.scene_id} • ${job.status}`;
+            if (job.status === 'completed') {
+              li.style.color = '#8ef0c1';
+              const videoUrl = job.output_url || (job.output_path ? `/patient-library/${job.output_path.split('patient_library\\').pop().replaceAll('\\', '/')}` : '');
+              if (videoUrl) {
+                const link = document.createElement('a');
+                link.href = apiUrl(videoUrl);
+                link.target = '_blank';
+                link.rel = 'noopener';
+                link.textContent = ' Open video';
+                li.appendChild(link);
+              }
+            }
+            ui.videoList.appendChild(li);
+          });
+          if (!jobs.length) {
+            const li = document.createElement('li');
+            li.textContent = 'No video jobs yet.';
+            ui.videoList.appendChild(li);
+          }
+          log(`Video jobs loaded: ${JSON.stringify(jobs)}`);
+        } catch (error) {
+          log(`Video listing failed: ${error.message}`);
+        }
+      }
+
+      async function generateVideos() {
+        const prompt = (ui.caregiverPrompt.value || '').trim();
+        try {
+          const endpoint = prompt ? '/api/grounding/generate' : `/api/patients/${patientId}/videos/generate`;
+          const payload = prompt ? { patient_id: patientId, prompt } : { prompt };
+          const result = await api(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const jobs = Array.isArray(result) ? result : [result];
+          ui.videoStatus.textContent = prompt
+            ? `Generated ${jobs.length} grounded scene job(s) for the active prompt.`
+            : `Generated ${jobs.length} video jobs.`;
+          log(`Videos generated: ${JSON.stringify(result)}`);
+          await refreshVideos();
+        } catch (error) {
+          log(`Video generation failed: ${error.message}`);
+          ui.videoStatus.textContent = `Video generation failed: ${error.message}`;
+        }
+      }
+
+      const beatMap = {
+        jasmine_01: 'Jasmine Morning • Door ritual',
+        jasmine_02: 'Jasmine Morning • Watering the brass pot',
+        jasmine_03: 'Jasmine Morning • Walking to the jasmine',
+        jasmine_04: 'Jasmine Morning • Picking flowers',
+        jasmine_05: 'Jasmine Morning • Threading the garland',
+        jasmine_06: 'Jasmine Morning • Preparing the thread',
+        jasmine_07: 'Jasmine Morning • Making the garland',
+        jasmine_08: 'Jasmine Morning • Finished morning ritual',
+        mango_01: 'Mango Tree • Picking the best mango',
+        mango_02: 'Mango Tree • Running to the tree',
+        mango_03: 'Mango Tree • Climbing the branch',
+        mango_04: 'Mango Tree • Eating the mango',
+        mango_05: 'Mango Tree • Sharing with father',
+        rain_01: 'Rainy-Day Kitchen • Listening to the rain',
+        rain_02: 'Rainy-Day Kitchen • Heating the oil',
+        rain_03: 'Rainy-Day Kitchen • Adding curry leaves',
+        rain_04: 'Rainy-Day Kitchen • Peeling garlic',
+        rain_05: 'Rainy-Day Kitchen • Tasting the meal',
+        school_01: 'School Morning • Leaving home',
+        school_02: 'School Morning • Crossing the bridge',
+        school_03: 'School Morning • Stopping for jaggery',
+        school_04: 'School Morning • Walking barefoot',
+        school_05: 'School Morning • Arriving at class',
+        railway_01: 'Railway Station • Waiting under the roof',
+        railway_02: 'Railway Station • Fixing the sandal strap',
+        railway_03: 'Railway Station • Repairing the book strap',
+        railway_04: 'Railway Station • Picking up the book',
+        railway_05: 'Railway Station • Waiting for the train',
+      };
+
+      function renderGameProgress(progress, storyProgression, guidance) {
+        const chapterLibrary = [
+          { id: 'jasmine_morning', title: 'The Jasmine Morning', label: 'Jasmine Morning' },
+          { id: 'mango_tree', title: 'The Mango Tree', label: 'Mango Tree' },
+          { id: 'rainy_day_kitchen', title: 'The Rainy-Day Kitchen', label: 'Rainy-Day Kitchen' },
+          { id: 'school_morning', title: 'The School Morning', label: 'School Morning' },
+          { id: 'railway_station', title: 'The Railway Station', label: 'Railway Station' },
+        ];
+
+        const states = [
+          { key: 'memory_scene_started', label: 'Scene started', okText: 'Started' },
+          { key: 'response_recorded', label: 'Response recorded', okText: 'Recorded' },
+          { key: 'reminder_completed', label: 'Reminder complete', okText: 'Done' },
+          { key: 'session_report_created', label: 'Report ready', okText: 'Ready' },
+        ];
+
+        const progressGrid = ui.gameProgressGrid || document.getElementById('gameProgressGrid') || document.getElementById('legacyGameProgressGrid');
+        if (progressGrid) {
+          progressGrid.innerHTML = states.map((state) => {
+            const active = Boolean(progress?.[state.key]);
+            return `
+              <div style="border:1px solid ${active ? '#5ec5a7' : '#3f4660'}; background:${active ? 'rgba(94,197,167,0.14)' : 'rgba(255,255,255,0.03)'}; border-radius:12px; padding:10px; transform:${active ? 'translateY(-2px)' : 'none'}; transition:all 0.25s ease;">
+                <div style="font-size:11px; text-transform: uppercase; letter-spacing: 0.08em; color: #b9c0d6;">${state.label}</div>
+                <div style="margin-top:8px; font-weight:700; color:${active ? '#dffef5' : '#dfe7ff'};">${active ? state.okText : 'Waiting'}</div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        const completedBeats = Number(storyProgression?.completed_beats ?? 0);
+        const currentBeatId = currentBeat?.beat_id || storyProgression?.current_beat || null;
+        const currentBeatLabel = currentBeatId ? (beatMap[currentBeatId] || currentBeatId) : 'Current memory beat';
+        const reminderState = guidance?.includes('Reminder due now');
+        const reportState = guidance?.includes('Care report ready');
+        const storyIndex = chapterLibrary.findIndex((story) => {
+          const name = (story.title || story.label || '').toLowerCase();
+          const beatMatch = currentBeatId ? currentBeatId.toLowerCase().startsWith(story.id.replace('_', '').slice(0, 4) || '') : false;
+          return beatMatch || (currentBeatLabel || '').toLowerCase().includes(name.replace(/[^a-z ]/g, '').split(' ')[0]);
+        });
+
+        const currentStoryIndex = storyIndex >= 0 ? storyIndex : Math.max(0, Math.min(completedBeats > 0 ? completedBeats - 1 : 0, chapterLibrary.length - 1));
+        const chapterTitle = chapterLibrary[currentStoryIndex]?.title || 'Memory Chapter';
+        const chapterLabel = chapterLibrary[currentStoryIndex]?.label || 'Memory Chapter';
+        const progressPercent = Number(storyProgression?.progress_percent ?? 0);
+        const totalBeats = Number(storyProgression?.total_beats ?? 0);
+        const memoryXp = Math.max(0, completedBeats * 25 + Math.floor(progressPercent / 10) * 5);
+        const badgeTotal = 5;
+        const badgeUnlocked = Math.min(badgeTotal, (completedBeats > 0 ? 1 : 0) + (completedBeats >= 3 ? 1 : 0) + (completedBeats >= 5 ? 1 : 0) + (progressPercent >= 75 ? 1 : 0) + (progressPercent >= 100 ? 1 : 0));
+
+        const xpValue = document.getElementById('xpValue');
+        const sceneCountValue = document.getElementById('sceneCountValue');
+        const badgeCountValue = document.getElementById('badgeCountValue');
+        const questTitle = document.getElementById('questTitle');
+        const questText = document.getElementById('questText');
+        const sceneChapterLabel = document.getElementById('sceneChapterLabel');
+        const sceneTitleLabel = document.getElementById('sceneTitleLabel');
+        const sceneStatusLabel = document.getElementById('sceneStatusLabel');
+        const adventureChapterTitle = document.getElementById('adventureChapterTitle');
+        if (xpValue) xpValue.textContent = String(memoryXp);
+        if (sceneCountValue) sceneCountValue.textContent = `${completedBeats}/${totalBeats || chapterLibrary.length}`;
+        if (badgeCountValue) badgeCountValue.textContent = `${badgeUnlocked}/${badgeTotal}`;
+        if (questTitle) questTitle.textContent = currentBeatId ? `Remember: ${chapterLabel}` : 'Begin the journey';
+        if (questText) questText.textContent = currentBeat?.question || 'Choose a story and start the first scene to reveal the next prompt.';
+        if (sceneChapterLabel) sceneChapterLabel.textContent = chapterLabel;
+        if (sceneTitleLabel) sceneTitleLabel.textContent = currentBeatLabel;
+        if (sceneStatusLabel) sceneStatusLabel.textContent = reportState ? 'Adventure complete' : currentBeatId ? 'Memory in progress' : 'Ready to begin';
+        if (adventureChapterTitle) adventureChapterTitle.textContent = chapterTitle;
+
+        const memoryItems = chapterLibrary.map((story, index) => {
+          const isComplete = completedBeats > index + 1;
+          const isCurrent = index === currentStoryIndex;
+          const marker = isComplete ? '✓' : isCurrent ? '◉' : '○';
+          const glow = isCurrent ? 'font-weight:700; color:#f5d0fe;' : 'color:#dfe7ff;';
+          return `<div style="${glow}">${marker} ${story.label}</div>`;
+        }).join('');
+
+        const memoryPath = ui.gameMemoryPath || document.getElementById('gameMemoryPath') || document.getElementById('legacyGameMemoryPath');
+        if (memoryPath) {
+          memoryPath.innerHTML = `<strong>Memory path</strong><br>${memoryItems}`;
+        }
+
+        const adventurePath = document.getElementById('adventurePath');
+        if (adventurePath) {
+          adventurePath.innerHTML = chapterLibrary.map((story, index) => {
+            const isComplete = completedBeats > index + 1;
+            const isCurrent = index === currentStoryIndex;
+            return `<div class="path-node ${isComplete ? 'done' : ''} ${isCurrent ? 'active' : ''}">${story.label}</div>`;
+          }).join('');
+        }
+        const nextLabel = storyProgression?.next_beat_unlocked ? ` • next unlock: ${storyProgression.next_beat_unlocked}` : '';
+        const guidanceText = guidance && guidance.length ? guidance.join(' • ') : 'Start the memory scene';
+        if (ui.gameTimeline) {
+          ui.gameTimeline.textContent = `Progress ${progressPercent}% • ${completedBeats}/${totalBeats} beats done${nextLabel} • ${currentBeatLabel} • ${guidanceText}`;
+        }
+
+        if (ui.chapterTitle) ui.chapterTitle.textContent = chapterTitle;
+        if (ui.chapterBadge) {
+          ui.chapterBadge.textContent = reportState ? 'Report ready' : reminderState ? 'Reminder active' : chapterLabel;
+          ui.chapterBadge.style.background = reportState ? 'rgba(16,185,129,.12)' : reminderState ? 'rgba(245,158,11,.15)' : 'rgba(168,85,247,.12)';
+          ui.chapterBadge.style.color = reminderState ? '#b45309' : '#d8b4fe';
+        }
+      }
+
+      async function startSession() {
+        const prompt = ui.caregiverPrompt.value.trim();
+        if (!prompt) {
+          alert('Please enter a caregiver prompt first.');
+          return;
+        }
+
+        try {
+          const result = await api('/api/game/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patient_id: patientId, prompt, narration_language: selectedLanguage() }),
+          });
+          sessionId = result.session_id;
+          ui.gameBeatInfo.textContent = `Session started: ${sessionId}`;
+          ui.chapterTitle.textContent = storyTitleById[result.story_id] || 'Memory Chapter';
+          ui.gameNarration.textContent = result.message || 'The memory scene has started.';
+          updateCommandPrompt(null);
+          activatePanel('gameplay');
+          log(`Session started: ${JSON.stringify(result)}`);
+          await loadSessionState();
+        } catch (error) {
+          log(`Session start failed: ${error.message}`);
+          ui.videoStatus.textContent = `Session start failed: ${error.message}`;
+        }
+      }
+
+      async function playNext() {
+        if (!sessionId) {
+          log('Please start a session first.');
+          return;
+        }
+
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/play`, { method: 'POST' });
+          currentBeat = result;
+          ui.gameBeatInfo.textContent = `Beat: ${result.beat_id} • scene: ${beatMap[result.beat_id] || result.beat_id} • status: ${result.status}`;
+          ui.gameNarration.textContent = result.question || '';
+          updateCommandPrompt(result.question, result.question_language);
+          activatePanel('gameplay');
+          renderGameProgress(result.progress, result.story_progression, result.caregiver_guidance || ['Start the memory scene']);
+          const videoUrl = result.video?.video_url || '';
+          const previewUrl = result.preview_url || result.video?.preview_url || '';
+          syncSceneVideo(videoUrl, previewUrl);
+          speakSceneQuestionForScene(result.beat_id, result.question || '');
+          log(`Play next: ${JSON.stringify(result)}`);
+        } catch (error) {
+          log(`Play failed: ${error.message}`);
+        }
+      }
+
+      async function replayCurrent() {
+        if (!sessionId) {
+          log('No session active.');
+          return;
+        }
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/replay`, { method: 'POST' });
+          currentBeat = result;
+          ui.gameBeatInfo.textContent = `Replay beat: ${result.beat_id}`;
+          updateCommandPrompt(result.question, result.question_language);
+          renderGameProgress(result.progress, result.story_progression, result.caregiver_guidance || ['Start the memory scene']);
+          const videoUrl = result.video?.video_url || '';
+          const previewUrl = result.preview_url || result.video?.preview_url || '';
+          syncSceneVideo(videoUrl, previewUrl);
+          speakSceneQuestionForScene(result.beat_id, result.question || '');
+          log(`Replay: ${JSON.stringify(result)}`);
+        } catch (error) {
+          log(`Replay failed: ${error.message}`);
+        }
+      }
+
+      function setMicButtonState(recording) {
+        const button = document.getElementById('recordInteractionBtn');
+        if (!button) return;
+        if (recording) {
+          button.innerHTML = '<span class="icon-wrap">🛑</span><span>Stop & save</span>';
+          button.classList.add('success');
+        } else {
+          button.innerHTML = '<span class="icon-wrap">🎙️</span><span>Mic</span>';
+          button.classList.remove('success');
+        }
+      }
+
+      function setCommandButtonState(recording) {
+        const button = document.getElementById('voiceCommandBtn');
+        if (!button) return;
+        button.innerHTML = recording
+          ? '<span class="icon-wrap">🛑</span><span>Stop command</span>'
+          : '<span class="icon-wrap">🎙️</span><span>Voice command</span>';
+        button.classList.toggle('success', recording);
+      }
+
+      function updateCommandPrompt(question, language = null) {
+        const prompt = document.getElementById('commandPromptText');
+        const examples = document.getElementById('commandExamples');
+        const selected = language || document.getElementById('commandLanguage')?.value || 'en';
+        if (!prompt || !examples) return;
+        prompt.textContent = question
+          ? `Gentle memory cue (${selected}): ${question}`
+          : 'Start a memory scene to receive one gentle cue.';
+        examples.textContent = question
+          ? 'A short answer is enough. You can also say “next scene”, “repeat”, or “finish”.'
+          : 'Commands: “start the memory”, “next scene”, “repeat”, or “finish”.';
+      }
+
+      async function sendVoiceCommand(audioBlob) {
+        const formData = new FormData();
+        formData.append('audio', audioBlob, `command_${Date.now()}.webm`);
+        formData.append('language', document.getElementById('commandLanguage').value);
+        try {
+          const result = await api('/api/voice/command', { method: 'POST', body: formData });
+          ui.reportStatus.textContent = `Heard: “${result.transcript}” • ${result.intent.intent}`;
+          const intent = result.intent.intent;
+          if (intent === 'start_game') await startSession();
+          if (intent === 'start_game') return;
+          if (intent === 'replay_scene' && sessionId) {
+            await replayCurrent();
+            return;
+          }
+          if (intent === 'next_scene' && sessionId) {
+            await playNext();
+            return;
+          }
+          if (intent === 'finish_session' && sessionId) {
+            await endSession();
+            return;
+          }
+          if (sessionId && ['unknown', 'query_memory', 'general_conversation'].includes(intent)) {
+            ui.patientTranscript.value = result.transcript;
+            const formData = new FormData();
+            formData.append('beat_id', currentBeat?.beat_id || '');
+            formData.append('beat_sequence', String(currentBeat?.beat_sequence || 1));
+            formData.append('question', currentBeat?.question || '');
+            formData.append('transcript', result.transcript);
+            formData.append('transcript_language', document.getElementById('commandLanguage').value);
+            formData.append('audio', audioBlob, `interaction_${sessionId}_${Date.now()}.webm`);
+            const response = await api(`/api/game/sessions/${sessionId}/interaction/audio`, { method: 'POST', body: formData });
+            ui.reportStatus.textContent = response.guidance || `Story response captured: “${result.transcript}”`;
+            if (response.score !== null && response.score !== undefined) {
+              ui.liveMemoryScore.hidden = false;
+              ui.memoryScoreValue.textContent = `${response.score}%`;
+              ui.memoryScoreLabel.textContent = response.score_label || 'Response scored';
+            }
+            speakGuidance(response.guidance);
+            if (response.next_action === 'finish') await endSession();
+            else if (response.next_action === 'replay') await replayCurrent();
+            else await playNext();
+          }
+          if (intent === 'query_memory') activatePanel('gameplay');
+          if (intent === 'create_reminder') activatePanel('reminders');
+        } catch (error) {
+          ui.reportStatus.textContent = `Voice command failed: ${error.message}`;
+        }
+      }
+
+      async function recordVoiceCommand() {
+        if (isCommandRecording) {
+          commandRecorder.stop();
+          isCommandRecording = false;
+          setCommandButtonState(false);
+          ui.reportStatus.textContent = 'Processing voice command...';
+          return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+          ui.reportStatus.textContent = 'Microphone access is unavailable in this browser.';
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          commandChunks = [];
+          commandRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+          commandRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) commandChunks.push(event.data);
+          };
+          commandRecorder.onstop = async () => {
+            stream.getTracks().forEach((track) => track.stop());
+            await sendVoiceCommand(new Blob(commandChunks, { type: commandRecorder.mimeType || 'audio/webm' }));
+          };
+          commandRecorder.start();
+          isCommandRecording = true;
+          setCommandButtonState(true);
+          ui.reportStatus.textContent = 'Listening for a command...';
+        } catch (error) {
+          ui.reportStatus.textContent = 'Microphone permission is required for voice commands.';
+        }
+      }
+
+      async function uploadVoiceInteraction(audioBlob) {
+        if (!sessionId) {
+          log('No session active to save voice recording.');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('audio', audioBlob, `interaction_${sessionId}_${Date.now()}.webm`);
+        formData.append('beat_id', currentBeat?.beat_id || '');
+        formData.append('beat_sequence', String(currentBeat?.beat_sequence || 1));
+        formData.append('question', currentBeat?.question || '');
+        formData.append('transcript', ui.patientTranscript.value.trim() || '');
+        formData.append('transcript_language', selectedLanguage());
+        formData.append('asr_confidence', '1.0');
+
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/interaction/audio`, {
+            method: 'POST',
+            body: formData,
+          });
+          if (result.transcript) {
+            ui.patientTranscript.value = result.transcript;
+          }
+          if (result.score !== null && result.score !== undefined) {
+            ui.liveMemoryScore.hidden = false;
+            ui.memoryScoreValue.textContent = `${result.score}%`;
+            ui.memoryScoreLabel.textContent = result.score_label || 'Response scored';
+          }
+          showMemoryFeedback(result.feedback_emoji, result.match_status);
+          ui.reportStatus.textContent = result.guidance || 'Voice response saved to patient session.';
+          speakGuidance(result.guidance);
+          log(`Voice interaction stored: ${JSON.stringify(result)}`);
+          if (result.next_action === 'finish') {
+            await endSession();
+          } else if (result.next_action === 'replay') {
+            await replayCurrent();
+          } else {
+            await playNext();
+          }
+        } catch (error) {
+          log(`Voice interaction upload failed: ${error.message}`);
+          ui.reportStatus.textContent = `Voice upload failed: ${error.message}`;
+        }
+      }
+
+      async function recordInteraction() {
+        if (!sessionId) {
+          log('No session to record interaction for.');
+          return;
+        }
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          if (isVoiceRecording) {
+            mediaRecorder.stop();
+            isVoiceRecording = false;
+            setMicButtonState(false);
+            ui.reportStatus.textContent = 'Saving voice recording...';
+            return;
+          }
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recordedAudioChunks = [];
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                recordedAudioChunks.push(event.data);
+              }
+            };
+            mediaRecorder.onstop = async () => {
+              const audioBlob = new Blob(recordedAudioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+              stream.getTracks().forEach((track) => track.stop());
+              await uploadVoiceInteraction(audioBlob);
+            };
+            mediaRecorder.start();
+            isVoiceRecording = true;
+            setMicButtonState(true);
+            ui.reportStatus.textContent = 'Recording voice response...';
+            log('Microphone recording started.');
+          } catch (error) {
+            log(`Microphone capture failed: ${error.message}`);
+            ui.reportStatus.textContent = 'Microphone access is unavailable. Please type a transcript instead.';
+          }
+          return;
+        }
+
+        const transcript = ui.patientTranscript.value.trim();
+        if (!transcript) {
+          log('Please enter a transcript before recording.');
+          return;
+        }
+
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/interaction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              beat_id: currentBeat?.beat_id || '',
+              beat_sequence: currentBeat?.beat_sequence || 1,
+              question: currentBeat?.question || '',
+              spoken: true,
+              transcript,
+              transcript_language: selectedLanguage(),
+            }),
+          });
+          if (result.score !== null && result.score !== undefined) {
+            ui.liveMemoryScore.hidden = false;
+            ui.memoryScoreValue.textContent = `${result.score}%`;
+            ui.memoryScoreLabel.textContent = result.score_label || 'Response scored';
+          }
+          log(`Interaction recorded: ${JSON.stringify(result)}`);
+          await playNext();
+        } catch (error) {
+          log(`Interaction recording failed: ${error.message}`);
+        }
+      }
+
+      async function submitTypedResponse() {
+        if (!sessionId) {
+          ui.reportStatus.textContent = 'Start a memory scene first.';
+          return;
+        }
+        const transcript = ui.patientTranscript.value.trim();
+        if (!transcript) {
+          ui.reportStatus.textContent = 'Type a short answer first.';
+          return;
+        }
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/interaction`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              beat_id: currentBeat?.beat_id || '',
+              beat_sequence: currentBeat?.beat_sequence || 1,
+              question: currentBeat?.question || '',
+              spoken: true,
+              transcript,
+              transcript_language: selectedLanguage(),
+            }),
+          });
+          if (result.score !== null && result.score !== undefined) {
+            ui.liveMemoryScore.hidden = false;
+            ui.memoryScoreValue.textContent = `${result.score}%`;
+            ui.memoryScoreLabel.textContent = result.score_label || 'Response scored';
+          }
+          ui.reportStatus.textContent = result.score_label || 'Answer recorded.';
+          await playNext();
+        } catch (error) {
+          ui.reportStatus.textContent = `Typed answer failed: ${error.message}`;
+        }
+      }
+
+      async function endSession() {
+        if (!sessionId) {
+          log('No session active to finish.');
+          return;
+        }
+
+        try {
+          const result = await api(`/api/game/sessions/${sessionId}/end`, { method: 'POST' });
+          ui.reportStatus.textContent = `Session completed. Report: ${result.download_url || 'not available'}`;
+          if (ui.liveMemoryScore) ui.liveMemoryScore.hidden = false;
+          if (ui.memoryScoreValue) ui.memoryScoreValue.textContent = `${result.memory_score ?? 0}%`;
+          if (ui.memoryScoreLabel) ui.memoryScoreLabel.textContent = result.memory_score_label || 'No scored responses';
+          ui.reportCountText.textContent = String(Number(ui.reportCountText.textContent || '0') + 1);
+          ui.reminderStatusText.textContent = 'Report ready';
+          log(`Session ended: ${JSON.stringify(result)}`);
+          renderGameProgress(result.progress, result.story_progression, result.caregiver_guidance || ['Care report ready']);
+
+          const reportResponse = await fetch(apiUrl(result.download_url || `/api/game/sessions/${sessionId}/report`));
+          if (reportResponse.ok) {
+            ui.reportStatus.textContent += ` • Download ready (${reportResponse.headers.get('content-type') || 'report'})`;
+          }
+        } catch (error) {
+          log(`End session failed: ${error.message}`);
+        }
+      }
+
+      async function loadDueReminders() {
+        try {
+          const prewarm = await api(`/api/patients/${patientId}/care-plan/reminders/videos/prewarm?lead_minutes=15`, { method: 'POST' });
+          const result = await api(`/api/patients/${patientId}/care-plan/reminders/due?window_minutes=30`);
+          const due = result.due_reminders || [];
+          const nextReminder = result.next_reminder;
+          const scheduledVideo = (prewarm?.scheduled || []).find((job) => job.status === 'processing' || job.status === 'completed');
+          if (ui.reminderVideoSchedule) {
+            const jobs = prewarm?.scheduled || [];
+            ui.reminderVideoSchedule.innerHTML = jobs.length
+              ? `<strong>Reminder videos</strong><br>${jobs.map((job) => `🎬 ${job.status || 'scheduled'}${job.scheduled_for ? ` • ${job.scheduled_for}` : ''}`).join('<br>')}`
+              : '🎬 Reminder videos will be prepared 15 minutes before each scheduled cue.';
+          }
+
+          if (!due.length) {
+            ui.reminderStatusText.textContent = nextReminder ? 'Next reminder' : 'No reminder';
+            ui.reminderPanel.innerHTML = nextReminder
+              ? `<div style="margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">⏰ Next care cue: ${nextReminder.task} at ${nextReminder.time} · ${nextReminder.reminder_type}<br><span style="font-size:.82rem; color:#0f766e;">🎬 ${scheduledVideo ? 'Reminder video is being prepared.' : 'Reminder video will prewarm 15 minutes before the cue.'}</span></div>`
+              : '<div>There is no reminder due at this time. The next care cue will appear when the schedule is active.</div>';
+            ui.chapterBadge.textContent = nextReminder ? 'Reminder scheduled' : 'Ready';
+            ui.chapterBadge.style.background = nextReminder ? 'rgba(245,158,11,.15)' : 'rgba(16,185,129,.12)';
+            ui.chapterBadge.style.color = nextReminder ? '#b45309' : '#0f766e';
+            return;
+          }
+
+          ui.reminderStatusText.textContent = due.length > 1 ? `${due.length} reminders due` : 'Reminder due now';
+          ui.reminderPanel.innerHTML = due.map((item) => {
+            const timeLabel = item.time ? ` at ${item.time}` : ' now';
+            return `<div style="margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">⏰ ${item.task}${timeLabel} · ${item.reminder_type}</div>`;
+          }).join('');
+          ui.reportStatus.textContent = due.length ? `Care reminder active: ${due[0].task}${scheduledVideo ? ' • reminder video prepared' : ''}` : ui.reportStatus.textContent;
+          ui.chapterBadge.textContent = 'Reminder active';
+          ui.chapterBadge.style.background = 'rgba(245,158,11,.15)';
+          ui.chapterBadge.style.color = '#b45309';
+        } catch (error) {
+          ui.reminderStatusText.textContent = 'Reminder missing';
+          ui.reminderPanel.textContent = `No active reminder: ${error.message}`;
+        }
+      }
+
+      async function triggerReminder() {
+        await loadDueReminders();
+        const reminderPanelText = ui.reminderPanel.textContent || '';
+        const hasReminder = reminderPanelText.includes('⏰') || reminderPanelText.includes('Care reminder active');
+        ui.reportStatus.textContent = hasReminder ? 'Reminder triggered and caregiver prompt is visible.' : 'No reminder is due right now. The schedule may be outside the active window.';
+        ui.chapterBadge.textContent = hasReminder ? 'Reminder active' : 'Ready';
+        ui.chapterBadge.style.background = hasReminder ? 'rgba(245,158,11,.15)' : 'rgba(16,185,129,.12)';
+        ui.chapterBadge.style.color = hasReminder ? '#b45309' : '#0f766e';
+      }
+
+      async function downloadReport() {
+        if (!sessionId) {
+          ui.reportStatus.textContent = 'No active session yet. Start a session first.';
+          return;
+        }
+        try {
+          const response = await fetch(apiUrl(`/api/game/sessions/${sessionId}/report`));
+          if (!response.ok) {
+            throw new Error('No report has been generated for the current session');
+          }
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `difference_report_${sessionId}.docx`;
+          anchor.click();
+          window.URL.revokeObjectURL(url);
+          ui.reportStatus.textContent = 'Difference report downloaded.';
+        } catch (error) {
+          ui.reportStatus.textContent = error.message;
+        }
+      }
+
+      document.querySelectorAll('.nav-item').forEach((button) => {
+        button.addEventListener('click', () => activatePanel(button.dataset.target));
+      });
+
+      document.getElementById('loadPatientBtn').addEventListener('click', loadPatient);
+      document.getElementById('loadFolderBtn').addEventListener('click', loadFolder);
+      document.getElementById('resolveGroundingBtn').addEventListener('click', resolveGrounding);
+      document.getElementById('generateGroundedVideoBtn').addEventListener('click', generateGroundedVideo);
+      document.getElementById('uploadBundleBtn').addEventListener('click', uploadBundle);
+      const imageUploadButton = document.getElementById('uploadImagesBtn');
+      if (imageUploadButton) imageUploadButton.remove();
+      document.getElementById('voiceInput').addEventListener('change', (event) => {
+        const file = event.target.files?.[0];
+        ui.voiceFileName.textContent = file ? `${file.name} selected` : 'No audio file selected.';
+      });
+      document.getElementById('recordVoiceStoryBtn').addEventListener('click', toggleVoiceStoryRecording);
+      document.getElementById('uploadVoiceBtn').addEventListener('click', () => uploadVoice());
+      document.getElementById('buildStoryBtn').addEventListener('click', buildStory);
+      document.getElementById('generateVideosBtn').addEventListener('click', generateVideos);
+      document.getElementById('refreshVideosBtn').addEventListener('click', refreshVideos);
+      document.getElementById('startGameBtn').addEventListener('click', startSession);
+      document.getElementById('voiceCommandBtn').addEventListener('click', recordVoiceCommand);
+      document.getElementById('commandLanguage').addEventListener('change', (event) => {
+        updateCommandPrompt(currentBeat?.question, event.target.value);
+        ui.reportStatus.textContent = `Language set to ${event.target.options[event.target.selectedIndex].text}.`;
+        updateSessionLanguage(event.target.value).catch((error) => {
+          log(`Language change failed: ${error.message}`);
+          ui.reportStatus.textContent = `Language change failed: ${error.message}`;
+        });
+      });
+      document.getElementById('playNextBtn').addEventListener('click', playNext);
+      document.getElementById('replayBtn').addEventListener('click', replayCurrent);
+      document.getElementById('recordInteractionBtn').addEventListener('click', recordInteraction);
+      document.getElementById('submitTypedResponseBtn').addEventListener('click', submitTypedResponse);
+      document.getElementById('continueBtn').addEventListener('click', async () => {
+        ui.reportStatus.textContent = 'Continuing to the next memory beat without a spoken response.';
+        await playNext();
+      });
+      document.getElementById('endSessionBtn').addEventListener('click', endSession);
+      document.getElementById('triggerReminderBtn').addEventListener('click', triggerReminder);
+      document.getElementById('downloadReportBtn').addEventListener('click', downloadReport);
+      document.getElementById('speakQuestionBtn').addEventListener('click', () => {
+        const question = currentBeat?.question || ui.gameNarration.textContent || '';
+        speakSceneQuestionForScene(currentBeat?.beat_id || sessionId, question, true);
+      });
+
+      activatePanel('overview');
+      loadHealth();
+      loadStories();
+      loadPatient();
+      loadFolder();
+      refreshVideos();
+      loadDueReminders();
+      window.setInterval(loadDueReminders, 60000);
+    </script>
+  </body>
+</html>
