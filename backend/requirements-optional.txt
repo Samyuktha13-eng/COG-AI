@@ -12,3 +12,5 @@ transformers>=4.44
 sentencepiece>=0.1.99
 soundfile>=0.12
 av>=18.0
+# Load environment variables from .env during Render startup and local runs.
+python-dotenv>=1.0
