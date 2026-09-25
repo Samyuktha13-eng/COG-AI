@@ -35,15 +35,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+STORY_IMAGE_ROOT.mkdir(parents=True, exist_ok=True)
+
 app.mount(
     "/story-images",
-    StaticFiles(directory=STORY_IMAGE_ROOT),
+    StaticFiles(directory=str(STORY_IMAGE_ROOT)),
     name="story-images",
 )
 
 app.mount(
     "/patient-library",
-    StaticFiles(directory=PATIENT_LIBRARY_ROOT),
+    StaticFiles(directory=str(PATIENT_LIBRARY_ROOT)),
     name="patient-library",
 )
 

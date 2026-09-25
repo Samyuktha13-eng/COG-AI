@@ -6,7 +6,22 @@ import requests
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-STORY_IMAGE_ROOT = PROJECT_ROOT / "Patient story image"
+
+
+def _resolve_story_image_root() -> Path:
+    candidates = [
+        PROJECT_ROOT / "Patient story image",
+        PROJECT_ROOT / "story-images",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    fallback = PROJECT_ROOT / "Patient story image"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+STORY_IMAGE_ROOT = _resolve_story_image_root()
 load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 
