@@ -18,18 +18,16 @@ DEFAULT_CACHE_DIR = Path(
     )
 )
 
-parser = argparse.ArgumentParser(description="Download a local Cogniv ASR model")
-parser.add_argument("--repo-id", default=DEFAULT_MODEL_ID)
-parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
-args = parser.parse_args()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Download a local Cogniv ASR model")
+    parser.add_argument("--repo-id", default=DEFAULT_MODEL_ID)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
+    args = parser.parse_args()
 
-hf_token = os.getenv("HF_TOKEN")
-
-if not hf_token:
-    raise RuntimeError(
-        "HF_TOKEN was not found in the .env file."
-    )
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        raise RuntimeError("HF_TOKEN was not found in the .env file.")
 
 args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -71,10 +69,14 @@ else:
         )
     print("Application model path:", args.output_dir)
 
-print()
-print("=" * 60)
-print("DOWNLOAD COMPLETE")
-print("=" * 60)
-print("Model directory:")
-print(model_dir)
-print("=" * 60)
+    print()
+    print("=" * 60)
+    print("DOWNLOAD COMPLETE")
+    print("=" * 60)
+    print("Model directory:")
+    print(model_dir)
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()
