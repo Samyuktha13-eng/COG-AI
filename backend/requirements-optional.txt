@@ -15,6 +15,8 @@ av>=18.0
 # FastAPI server/runtime for Render startup and local app boot.
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+# Required for FastAPI UploadFile/Form handling used by patient audio endpoints.
+python-multipart>=0.0.9
 # Gunicorn is optional but useful for Render process management.
 gunicorn>=22.0
 # Load environment variables from .env during Render startup and local runs.
