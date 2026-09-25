@@ -12,5 +12,10 @@ transformers>=4.44
 sentencepiece>=0.1.99
 soundfile>=0.12
 av>=18.0
+# FastAPI server/runtime for Render startup and local app boot.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+# Gunicorn is optional but useful for Render process management.
+gunicorn>=22.0
 # Load environment variables from .env during Render startup and local runs.
 python-dotenv>=1.0
