@@ -7,6 +7,10 @@
       "destination": "https://cog-ai-3no1.onrender.com/api/:path*"
     },
     {
+      "source": "/generated-videos/:path*",
+      "destination": "https://cog-ai-3no1.onrender.com/generated-videos/:path*"
+    },
+    {
       "source": "/story-images/:path*",
       "destination": "https://cog-ai-3no1.onrender.com/story-images/:path*"
     },

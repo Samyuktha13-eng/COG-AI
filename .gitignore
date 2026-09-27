@@ -1,4 +1,16 @@
-models/
+.env
+.env.*
+.venv/
+venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+models/
+outputs/
+Patient story image/
+cogniv-ai/
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.webm

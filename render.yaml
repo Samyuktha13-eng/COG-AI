@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: cog-ai
+    env: python
+    plan: free
+    region: oregon
+    rootDir: .
+    buildCommand: |
+      python -m pip install --upgrade pip
+      python -m pip install -r backend/requirements-optional.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/system/status
+    envVars:
+      - key: PYTHONPATH
+        value: .
+      - key: CORS_ALLOW_ORIGINS
+        value: https://*.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+      - key: APP_BASE_URL
+        value: https://cog-ai-3no1.onrender.com

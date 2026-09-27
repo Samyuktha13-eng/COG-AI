@@ -18,7 +18,22 @@ from .services.assets import STORY_IMAGE_ROOT
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PATIENT_LIBRARY_ROOT = PROJECT_ROOT / "outputs" / "patient_library"
+
+OUTPUT_ROOT_CANDIDATES = [
+    PROJECT_ROOT / "cogniv-ai" / "outputs",
+    PROJECT_ROOT / "outputs",
+]
+
+for candidate in OUTPUT_ROOT_CANDIDATES:
+    if candidate.exists() or candidate.parent.exists():
+        candidate.mkdir(parents=True, exist_ok=True)
+
+GENERATED_VIDEOS_ROOT = next(
+    (candidate for candidate in OUTPUT_ROOT_CANDIDATES if (candidate / "jasmine_morning").exists() or any(candidate.rglob("*.mp4"))),
+    OUTPUT_ROOT_CANDIDATES[1],
+)
 PATIENT_LIBRARY_ROOT.mkdir(parents=True, exist_ok=True)
+GENERATED_VIDEOS_ROOT.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Cogniv AI",
@@ -47,6 +62,12 @@ app.mount(
     "/patient-library",
     StaticFiles(directory=str(PATIENT_LIBRARY_ROOT)),
     name="patient-library",
+)
+
+app.mount(
+    "/generated-videos",
+    StaticFiles(directory=str(GENERATED_VIDEOS_ROOT)),
+    name="generated-videos",
 )
 
 app.include_router(health_router)

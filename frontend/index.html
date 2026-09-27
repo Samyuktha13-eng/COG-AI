@@ -1508,12 +1508,24 @@
         railway_station: 'The Railway Station',
       };
       let storyPromptById = {};
+      let generatedVideosByStoryId = {};
+
+      function resolveGeneratedVideoUrl(storyId, beatId) {
+        const storyVideos = generatedVideosByStoryId[storyId] || {};
+        if (!storyId || !beatId) return '';
+        const match = storyVideos[beatId];
+        if (!match) return '';
+        return match.url || '';
+      }
 
       async function loadStories() {
         try {
           const stories = await api('/api/stories');
           storyTitleById = Object.fromEntries(stories.map((story) => [story.id, story.title]));
           storyPromptById = Object.fromEntries(stories.map((story) => [story.id, story.prompt || '']));
+          generatedVideosByStoryId = Object.fromEntries(
+            stories.map((story) => [story.id, story.generated_videos || {}])
+          );
           const select = document.getElementById('storyPromptSelect');
           if (!select) return;
           select.innerHTML = '<option value="">Choose a memory story</option>';
@@ -1648,10 +1660,15 @@
       }
 
       function applySessionVideo(session) {
-        const videoUrl = session?.video_url || session?.current_video_url || '';
+        const storyId = session?.story_id || currentStoryId || '';
+        const beatId = session?.current_beat_id || currentBeat?.id || '';
+        const localVideoUrl = resolveGeneratedVideoUrl(storyId, beatId);
+        const videoUrl = session?.video_url || session?.current_video_url || localVideoUrl;
         const previewUrl = session?.preview_url || session?.video?.preview_url || '';
         syncSceneVideo(videoUrl, previewUrl);
       }
+
+      let currentStoryId = 'jasmine_morning';
 
       function scheduleSessionPolling() {
         if (activeSessionPoller) {
@@ -1667,7 +1684,10 @@
           if (!sessionId) return;
           try {
             const session = await api(`/api/game/sessions/${sessionId}`);
-            const videoUrl = session?.video_url || session?.current_video_url || '';
+            const storyId = session?.story_id || currentStoryId || '';
+            const beatId = session?.current_beat_id || currentBeat?.id || '';
+            const localVideoUrl = resolveGeneratedVideoUrl(storyId, beatId);
+            const videoUrl = session?.video_url || session?.current_video_url || localVideoUrl;
             const previewUrl = session?.preview_url || session?.video?.preview_url || '';
             if (session && session.status && session.status !== 'completed') {
               ui.gameNarration.textContent = session.current_question || ui.gameNarration.textContent || 'Waiting for the scene question.';
@@ -1695,6 +1715,7 @@
         try {
           const session = await api(`/api/game/sessions/${sessionId}`);
           const storyId = session.story_id || 'jasmine_morning';
+          currentStoryId = storyId;
           const beatId = session.current_beat_id || 'current beat';
           const chapterTitle = storyTitleById[storyId] || 'Memory Chapter';
 

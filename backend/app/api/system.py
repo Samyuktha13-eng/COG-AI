@@ -18,6 +18,7 @@ def system_status():
         "mongodb_database": database,
         "mongodb_uri_configured": bool(uri),
         "patient_library_root": "/patient-library",
+        "generated_videos_root": "/generated-videos",
         "reminder_support": True,
         "difference_report_support": True,
         "grounding_enabled": True,
