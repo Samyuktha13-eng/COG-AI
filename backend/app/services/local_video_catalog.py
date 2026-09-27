@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _env_dir(*names: str) -> list[Path]:
+    paths: list[Path] = []
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            paths.append(Path(value))
+    return paths
+
+
 OUTPUT_CANDIDATES = [
-    PROJECT_ROOT / "outputs",
+    *_env_dir("GENERATED_VIDEOS_DIR", "OUTPUTS_DIR"),
     PROJECT_ROOT / "cogniv-ai" / "outputs",
+    PROJECT_ROOT / "outputs",
 ]
 
 _STORY_NAME_ALIASES = {

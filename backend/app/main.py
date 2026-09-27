@@ -17,21 +17,41 @@ from .api.voice import router as voice_router
 from .services.assets import STORY_IMAGE_ROOT
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PATIENT_LIBRARY_ROOT = PROJECT_ROOT / "outputs" / "patient_library"
+
+
+def _env_dir(*names: str) -> list[Path]:
+    paths: list[Path] = []
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            paths.append(Path(value))
+    return paths
+
+
+def _resolved_output_dir(*candidates: Path) -> Path:
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_dir():
+            return candidate.resolve()
+    for candidate in candidates:
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate.resolve()
+    fallback = (PROJECT_ROOT / "outputs").resolve()
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
 
 OUTPUT_ROOT_CANDIDATES = [
+    *_env_dir("GENERATED_VIDEOS_DIR", "OUTPUTS_DIR"),
     PROJECT_ROOT / "cogniv-ai" / "outputs",
     PROJECT_ROOT / "outputs",
 ]
 
-for candidate in OUTPUT_ROOT_CANDIDATES:
-    if candidate.exists() or candidate.parent.exists():
-        candidate.mkdir(parents=True, exist_ok=True)
-
-GENERATED_VIDEOS_ROOT = next(
-    (candidate for candidate in OUTPUT_ROOT_CANDIDATES if (candidate / "jasmine_morning").exists() or any(candidate.rglob("*.mp4"))),
-    OUTPUT_ROOT_CANDIDATES[1],
+PATIENT_LIBRARY_ROOT = _resolved_output_dir(
+    *_env_dir("PATIENT_LIBRARY_DIR"),
+    PROJECT_ROOT / "outputs" / "patient_library",
+    PROJECT_ROOT / "cogniv-ai" / "outputs" / "patient_library",
 )
+GENERATED_VIDEOS_ROOT = _resolved_output_dir(*OUTPUT_ROOT_CANDIDATES)
 PATIENT_LIBRARY_ROOT.mkdir(parents=True, exist_ok=True)
 GENERATED_VIDEOS_ROOT.mkdir(parents=True, exist_ok=True)
 

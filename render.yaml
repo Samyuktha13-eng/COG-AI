@@ -17,3 +17,13 @@ services:
         value: https://*.vercel.app,http://localhost:5173,http://127.0.0.1:5173
       - key: APP_BASE_URL
         value: https://cog-ai-3no1.onrender.com
+      - key: GENERATED_VIDEOS_DIR
+        value: /var/data/outputs
+      - key: PATIENT_LIBRARY_DIR
+        value: /var/data/outputs/patient_library
+      - key: OUTPUTS_DIR
+        value: /var/data/outputs
+    disk:
+      name: cogniv-data
+      mountPath: /var/data
+      sizeGB: 10
