@@ -1405,7 +1405,20 @@
         });
       }
 
-      const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:8000' : '';
+      const API_BASE = (() => {
+        const host = window.location.hostname;
+        const port = window.location.port;
+
+        if (host === 'localhost' || host === '127.0.0.1') {
+          return port === '5173' || port === '4173' ? 'http://127.0.0.1:8000' : '';
+        }
+
+        if (host.endsWith('vercel.app')) {
+          return 'https://cog-ai-3no1.onrender.com';
+        }
+
+        return '';
+      })();
 
       function apiUrl(path) {
         return `${API_BASE}${path}`;
