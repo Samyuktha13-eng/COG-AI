@@ -1,8 +1,32 @@
+import asyncio
+import json
+from io import BytesIO
+
 from fastapi.testclient import TestClient
+from starlette.datastructures import UploadFile
 
 from backend.app.main import app
+from voice.asr_router import INDIAN_LANGUAGE_CODES
 
 client = TestClient(app)
+
+
+def test_game_transcribe_uses_shared_voice_asr(monkeypatch):
+    from backend.app.api.game import _transcribe
+
+    calls = []
+
+    async def fake_run_asr(audio, session_id, language):
+        calls.append((audio.filename, session_id, language))
+        return "recognized"
+
+    monkeypatch.setattr("backend.app.api.voice._run_asr", fake_run_asr)
+    audio = UploadFile(file=BytesIO(b"recorded audio"), filename="patient.webm")
+
+    result = asyncio.run(_transcribe(audio, "session-1", "te"))
+
+    assert result == "recognized"
+    assert calls == [("patient.webm", "session-1", "te")]
 
 
 def test_phase2_gameplay_speak_skip_flow():
@@ -108,8 +132,88 @@ def test_phase2_gameplay_speak_skip_flow():
     assert audio_interaction.json()["stored"] is True
 
 
-def test_phase2_gameplay_multilingual_question():
+def test_audio_interaction_falls_back_to_current_beat_metadata():
+    session = client.post(
+        "/api/game/sessions",
+        json={"patient_id": "lakshmi_001", "story_id": "jasmine_morning", "narration_language": "en"},
+    ).json()
+    session_id = session["session_id"]
+
+    first = client.post(f"/api/game/sessions/{session_id}/play").json()
+    assert first["beat_id"]
+
+    response = client.post(
+        f"/api/game/sessions/{session_id}/interaction/audio",
+        data={
+            "beat_sequence": "1",
+            "transcript": "It was a warm morning",
+            "transcript_language": "en",
+        },
+        files={"audio": ("beat_001.wav", b"RIFF\x00\x00\x00\x00WAVE", "audio/wav")},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["stored"] is True
+    assert payload["beat_id"] == first["beat_id"]
+    assert payload["transcript"] == "It was a warm morning"
+
+
+def test_telugu_interaction_scores_mixed_story_details_partially():
+    session = client.post(
+        "/api/game/sessions",
+        json={"patient_id": "lakshmi_001", "story_id": "jasmine_morning", "narration_language": "te"},
+    ).json()
+    response = client.post(
+        f"/api/game/sessions/{session['session_id']}/interaction",
+        json={
+            "beat_id": "jasmine_01",
+            "beat_sequence": 1,
+            "question": "లక్ష్మి తలుపు దగ్గర ఏమి చేస్తోంది?",
+            "spoken": True,
+            "transcript": "లక్ష్మి తలుపు మూస్తుంది. మూసీతను నీళ్లు నింపి చెడ్ల నీళ్లు పోస్తోంది.",
+            "transcript_language": "te",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["score"] == 50
+    assert response.json()["score_label"] == "Partial story match"
+
+
+def test_memory_report_lists_saved_story_difference_reports(tmp_path, monkeypatch):
+    from backend.app.services import session_store
+
+    monkeypatch.setattr(session_store, "PATIENT_LIBRARY_ROOT", tmp_path)
+    report_path = tmp_path / "lakshmi_001" / "sessions" / "session-123" / "session_transcript.json"
+    report_path.parent.mkdir(parents=True)
+    report_path.write_text(json.dumps({
+        "patient_id": "lakshmi_001",
+        "session_id": "session-123",
+        "stories_played": ["jasmine_morning"],
+        "started_at": "2026-09-30T10:00:00+00:00",
+        "ended_at": "2026-09-30T10:05:00+00:00",
+        "spoken_responses": 1,
+        "memory_score": 75,
+        "memory_score_label": "Strong story match",
+        "story_comparisons": [{"beat_id": "jasmine_02", "patient_answer": "water"}],
+    }), encoding="utf-8")
+
+    response = client.get("/api/game/patients/lakshmi_001/reports")
+
+    assert response.status_code == 200
+    payload = response.json()["reports"]
+    assert len(payload) == 1
+    assert payload[0]["session_id"] == "session-123"
+    assert payload[0]["story_comparisons"][0]["patient_answer"] == "water"
+
+
+def test_phase2_gameplay_multilingual_question(monkeypatch):
     """Question is served in the requested language when available."""
+    monkeypatch.setattr(
+        "backend.app.services.gameplay.require_translation_to_language",
+        lambda text, language: f"{language}:{text}",
+    )
     session = client.post(
         "/api/game/sessions",
         json={"patient_id": "lakshmi_001", "story_id": "jasmine_morning", "narration_language": "ta"},
@@ -120,6 +224,57 @@ def test_phase2_gameplay_multilingual_question():
     assert beat["question_language"] == "ta"
     # Tamil question should contain Tamil characters or at least be non-empty
     assert beat["question"]
+
+
+def test_live_session_accepts_every_asr_language_code(monkeypatch):
+    """Game sessions accept all advertised codes when translation is available."""
+    monkeypatch.setattr(
+        "backend.app.services.gameplay.require_translation_to_language",
+        lambda text, language: f"{language}:{text}",
+    )
+    monkeypatch.setattr(
+        "backend.app.api.game.require_translation_to_language",
+        lambda text, language: f"{language}:{text}",
+    )
+    session = client.post(
+        "/api/game/start",
+        json={
+            "patient_id": "lakshmi_001",
+            "prompt": "jasmine morning",
+            "story_id": "jasmine_morning",
+            "narration_language": "en",
+        },
+    ).json()
+
+    for language in {"en", *INDIAN_LANGUAGE_CODES}:
+        response = client.post(
+            f"/api/game/sessions/{session['session_id']}/language",
+            json={"language": language},
+        )
+        assert response.status_code == 200, language
+        payload = response.json()
+        assert payload["question_language"] == language, language
+
+
+def test_game_does_not_speak_english_when_assamese_translation_fails(monkeypatch):
+    from backend.app.services.story_translation import StoryTranslationUnavailableError
+
+    monkeypatch.setattr(
+        "backend.app.services.gameplay.require_translation_to_language",
+        lambda text, language: (_ for _ in ()).throw(StoryTranslationUnavailableError("English fallback is disabled.")),
+    )
+    response = client.post(
+        "/api/game/start",
+        json={
+            "patient_id": "lakshmi_001",
+            "prompt": "jasmine morning",
+            "story_id": "jasmine_morning",
+            "narration_language": "as",
+        },
+    )
+
+    assert response.status_code == 503
+    assert "English fallback is disabled" in response.json()["detail"]
 
 
 def test_phase2_gameplay_exposes_game_progression_states():

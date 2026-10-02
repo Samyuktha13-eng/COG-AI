@@ -13,6 +13,9 @@ The patient's voice is stored as a raw interaction for later story comparison.
 from __future__ import annotations
 
 import uuid
+import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -28,6 +31,8 @@ from ..services.phase1 import CARE_PLANS
 from ..services.recognition import RecognitionService
 from ..services.session_store import SESSION_STORE, finalise_session
 from ..services.story_playback import StoryAgent
+from ..services.story_translation import StoryTranslationUnavailableError, require_translation_to_language
+from voice.asr_router import INDIAN_LANGUAGE_CODES
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -108,6 +113,7 @@ def start_game(request: StartRequest):
         patient_id=request.patient_id,
         story_id=story_id,
         narration_language=request.narration_language,
+        created_at=datetime.now(timezone.utc).isoformat(),
     )
 
     SESSION_STORE[session_id] = session
@@ -141,7 +147,11 @@ def start_game(request: StartRequest):
         care_plan=CARE_PLANS.get(request.patient_id),
         video_provider=LibraryVideoProvider(),
     )
-    first_beat = service.play_next()
+    try:
+        first_beat = service.play_next()
+    except StoryTranslationUnavailableError as error:
+        SESSION_STORE.pop(session_id, None)
+        raise HTTPException(status_code=503, detail=str(error)) from error
     _hydrate_session_video_status(session)
 
     return StartResponse(
@@ -174,10 +184,9 @@ def get_live_session(session_id: str):
 def set_live_session_language(session_id: str, request: LanguageRequest):
     session = _get_session(session_id)
     language = request.language.lower()
-    if language not in {"en", "hi", "te", "ta", "kn", "ml", "mr", "bn", "gu", "pa", "ur", "or", "as"}:
+    if language not in {"en", *INDIAN_LANGUAGE_CODES}:
         raise HTTPException(status_code=422, detail="Unsupported narration language")
 
-    session.narration_language = language
     if session.current_beat_id:
         from ..data.narrations import NARRATIONS
         from ..data.stories import get_story
@@ -187,19 +196,33 @@ def set_live_session_language(session_id: str, request: LanguageRequest):
         narration_data = NARRATIONS.get(session.current_beat_id, {})
         narration_by_language = beat.narration_by_language if beat else {}
         narration_by_language = narration_by_language or {"en": beat.narration if beat else narration_data.get("opening", "")}
-        session.narration_text = narration_by_language.get(language) or narration_by_language.get("en", "")
+        narration_text = narration_by_language.get(language) or narration_by_language.get("en", "")
+        if language not in narration_by_language and language != "en":
+            try:
+                narration_text = require_translation_to_language(narration_text, language)
+            except StoryTranslationUnavailableError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
         question_by_language = narration_data.get("question_by_language", {})
-        session.current_question = question_by_language.get(language) or question_by_language.get("en", "")
+        question_text = question_by_language.get(language) or question_by_language.get("en", "")
+        if language not in question_by_language and language != "en":
+            try:
+                question_text = require_translation_to_language(question_text, language)
+            except StoryTranslationUnavailableError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+        session.narration_text = narration_text
+        session.current_question = question_text
 
+    session.narration_language = language
     SESSION_STORE[session_id] = session
     payload = session.model_dump(mode="json")
-    payload["question_language"] = language if session.current_question and language in narration_data.get("question_by_language", {}) else "en"
+    payload["question_language"] = language
     return payload
 
 
 @router.post("/sessions/{session_id}/play")
 def play_live_session_beat(session_id: str):
     session = _get_session(session_id)
+    previous_session = session.model_copy(deep=True)
     story_agent = StoryAgent(session.story_id)
     service = GamePlayService(
         session,
@@ -207,7 +230,11 @@ def play_live_session_beat(session_id: str):
         care_plan=CARE_PLANS.get(session.patient_id),
         video_provider=LibraryVideoProvider(),
     )
-    result = service.play_next()
+    try:
+        result = service.play_next()
+    except StoryTranslationUnavailableError as error:
+        SESSION_STORE[session_id] = previous_session
+        raise HTTPException(status_code=503, detail=str(error)) from error
     SESSION_STORE[session_id] = session
     return result
 
@@ -258,7 +285,7 @@ def end_live_session(session_id: str):
         patient_name=session.patient_id,
         stories_played=[session.story_id],
         events=events,
-        started_at=session.started_at,
+        started_at=datetime.fromisoformat(session.created_at) if session.created_at else datetime.now(timezone.utc),
     )
 
     session.status = SessionStatus.COMPLETED
@@ -305,6 +332,40 @@ def report_live_session(session_id: str):
             return FileResponse(str(path), media_type=media_type, filename=path.name)
 
     raise HTTPException(status_code=404, detail="Report not yet generated. Call /end first.")
+
+
+@router.get("/patients/{patient_id}/reports")
+def list_patient_reports(patient_id: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", patient_id):
+        raise HTTPException(status_code=400, detail="Invalid patient ID")
+
+    from ..services.session_store import PATIENT_LIBRARY_ROOT
+
+    sessions_dir = PATIENT_LIBRARY_ROOT / patient_id / "sessions"
+    reports = []
+    if sessions_dir.is_dir():
+        for report_path in sessions_dir.glob("*/session_transcript.json"):
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if report.get("patient_id") != patient_id:
+                continue
+            reports.append({
+                "session_id": report.get("session_id", report_path.parent.name),
+                "patient_id": patient_id,
+                "stories_played": report.get("stories_played", []),
+                "started_at": report.get("started_at"),
+                "ended_at": report.get("ended_at"),
+                "spoken_responses": report.get("spoken_responses", 0),
+                "memory_score": report.get("memory_score"),
+                "memory_score_label": report.get("memory_score_label", ""),
+                "story_scores": report.get("story_scores", []),
+                "story_comparisons": report.get("story_comparisons", []),
+            })
+
+    reports.sort(key=lambda item: item.get("ended_at") or item.get("started_at") or "", reverse=True)
+    return {"reports": reports}
 
 
 # ---------------------------------------------------------------------------
@@ -549,27 +610,12 @@ def _hydrate_session_video_status(session: GameSession) -> None:
 
 async def _transcribe(audio: UploadFile, session_id: str, language: str) -> str:
     """
-    Write upload to a temp file and run the Indic Conformer ASR.
-    Falls back to an empty string if the model is unavailable.
+    Share the voice API's audio conversion and configured ASR routing.
     """
-    suffix = Path(audio.filename or "audio.wav").suffix or ".wav"
-    with NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(await audio.read())
-        tmp_path = tmp.name
-
     try:
-        from ..services.asr_provider import IndicConformerASRProvider
-        from pathlib import Path as _Path
-        project_root = _Path(__file__).resolve().parents[3]
-        provider = IndicConformerASRProvider(project_root)
-        job = await provider.submit(tmp_path, session_id, language)
-        result = await provider.get_result(job)
-        return result.text
+        from .voice import _run_asr
+
+        return await _run_asr(audio, session_id, language)
     except Exception:
         # ASR unavailable in this environment — return empty so caller can retry
         return ""
-    finally:
-        try:
-            Path(tmp_path).unlink(missing_ok=True)
-        except Exception:
-            pass

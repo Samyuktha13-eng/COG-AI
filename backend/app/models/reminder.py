@@ -13,6 +13,7 @@ class BeatReminder(CognivBaseModel):
     task: str = ""
     reminder_type: str = "routine"
     time: str | None = None
+    enabled: bool = True
     created_at: str | None = None
     acked: bool = False
 

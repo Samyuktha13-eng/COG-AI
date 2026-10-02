@@ -17,6 +17,16 @@ services:
         value: https://*.vercel.app,http://localhost:5173,http://127.0.0.1:5173
       - key: APP_BASE_URL
         value: https://cog-ai-3no1.onrender.com
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        value: centralindia
+      - key: AZURE_TRANSLATOR_KEY
+        sync: false
+      - key: AZURE_TRANSLATOR_REGION
+        sync: false
+      - key: AZURE_TRANSLATOR_ENDPOINT
+        value: https://api.cognitive.microsofttranslator.com
       - key: GENERATED_VIDEOS_DIR
         value: /var/data/outputs
       - key: PATIENT_LIBRARY_DIR

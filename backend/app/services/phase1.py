@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..data.stories import get_all_stories, get_story
@@ -86,7 +87,14 @@ def create_session(patient_id: str, story_id: str) -> GameSession:
         raise ValueError("Patient not found")
     if get_story(story_id) is None:
         raise ValueError("Story not found")
-    session = GameSession(session_id=str(uuid.uuid4()), patient_id=patient_id, story_id=story_id)
+    now = datetime.now(timezone.utc).isoformat()
+    session = GameSession(
+        session_id=str(uuid.uuid4()),
+        patient_id=patient_id,
+        story_id=story_id,
+        created_at=now,
+        updated_at=now,
+    )
     SESSIONS[session.session_id] = session
     return session
 

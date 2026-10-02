@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from .agent import generate_response
-from .asr import IndicConformerASR
 from .audio import load_audio, record_audio
+from .canary_asr import IndicTranscribeASR
 from .intent import IntentRouter
-from .tts import IndicF5TTS
+from .tts import IndicParlerTTS
 from tools.memory import memory_search
 from tools.reminders import ReminderStore
 
@@ -42,12 +42,21 @@ class CognivVoicePipeline:
         self.reminders = reminders or ReminderStore()
 
     def run(self, input_audio: str | Path, output_audio: str | Path, language: str | None = None) -> dict[str, Any]:
-        asr_result = self.asr.transcribe(input_audio, language=language) if language else self.asr.transcribe(input_audio)
+        previous_tts_unload = getattr(self.tts, "unload", None)
+        if callable(previous_tts_unload):
+            previous_tts_unload()
+        try:
+            asr_result = self.asr.transcribe(input_audio, language=language) if language else self.asr.transcribe(input_audio)
+        finally:
+            asr_unload = getattr(self.asr, "unload", None)
+            if callable(asr_unload):
+                asr_unload()
         transcript = asr_result["text"] if isinstance(asr_result, dict) else asr_result
+        selected_language = language or (asr_result.get("language") if isinstance(asr_result, dict) else None)
         intent = self.router.route(transcript)
         tool_result = self._run_tool(intent)
         response = generate_response(intent, tool_result)
-        audio_output = self.tts.synthesize(response, output_audio)
+        audio_output = self.tts.synthesize(response, output_audio, language=selected_language)
         return {"audio_input": str(input_audio), "transcript": transcript, "asr": asr_result, "intent": intent, "tool_result": tool_result, "response_text": response, "audio_output": str(audio_output)}
 
     def run_microphone(self, input_audio: str | Path, output_audio: str | Path, duration: float = 5.0, device: Any = None, language: str | None = None) -> dict[str, Any]:
@@ -67,8 +76,6 @@ class CognivVoicePipeline:
 
 def build_local_pipeline(project_root: str | Path) -> CognivVoicePipeline:
     root = Path(project_root)
-    model_dir = root / "models" / "indicf5"
-    reference_audio = _resolve_reference_audio(model_dir, root / "prompts" / "reference.wav")
-    asr = IndicConformerASR(root / "models" / "indic-conformer-600m-int8")
-    tts = IndicF5TTS(model_dir, reference_audio, "")
+    asr = IndicTranscribeASR(root / "models" / "indic-transcribe-core")
+    tts = IndicParlerTTS(root / "models" / "indic-parler-tts")
     return CognivVoicePipeline(asr, tts)

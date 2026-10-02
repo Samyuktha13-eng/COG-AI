@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
+import asyncio
 
 from ..models.recognition import SpeechTranscript
 from ..models.speech_job import SpeechJob
@@ -45,7 +46,11 @@ class IndicConformerASRProvider:
 
         if not job.language:
             raise ValueError("Indic Conformer requires an explicit language before transcription.")
-        result = ASRRouter(self.project_root).transcribe(job.asset_id, job.language)
+        result = await asyncio.to_thread(
+            ASRRouter(self.project_root).transcribe,
+            job.asset_id,
+            job.language,
+        )
         return SpeechTranscript(
             text=result.get("text", ""),
             language=result.get("language", job.language),

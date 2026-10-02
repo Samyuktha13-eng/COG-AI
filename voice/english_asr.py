@@ -23,10 +23,21 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _whisper_model_candidates(root: Path) -> list[Path]:
+    relative_path = DEFAULT_MODEL_RELATIVE_PATH
+    candidates = [root / relative_path, root / "cogniv-ai" / relative_path]
+    if root.name == "cogniv-ai":
+        candidates.append(root.parent / relative_path)
+    return list(dict.fromkeys(candidates))
+
+
 def validate_whisper_model(project_root_path: str | Path | None = None) -> Path:
     root = Path(project_root_path) if project_root_path else project_root()
-    model_path = root / DEFAULT_MODEL_RELATIVE_PATH
-    if not model_path.is_file() or not model_path.stat().st_size:
+    model_path = next(
+        (candidate for candidate in _whisper_model_candidates(root) if candidate.is_file() and candidate.stat().st_size),
+        None,
+    )
+    if model_path is None:
         raise WhisperUnavailableError("Whisper base.en weights are missing from the deployment package.")
     if not os.access(model_path, os.R_OK):
         raise WhisperUnavailableError(f"Whisper base.en weights are not readable: {model_path}")
@@ -43,7 +54,10 @@ class EnglishASR:
 
     @property
     def model_path(self) -> Path:
-        return self.project_root / DEFAULT_MODEL_RELATIVE_PATH
+        return next(
+            (candidate for candidate in _whisper_model_candidates(self.project_root) if candidate.is_file()),
+            self.project_root / DEFAULT_MODEL_RELATIVE_PATH,
+        )
 
     def load(self) -> "EnglishASR":
         if self._model is not None:

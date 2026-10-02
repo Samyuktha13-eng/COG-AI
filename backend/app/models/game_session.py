@@ -32,6 +32,7 @@ class GameSession(CognivBaseModel):
     video_request_id: str | None = None
     care_reminder_id: str | None = None
     care_reminder: str | None = None
+    presented_care_reminder_ids: list[str] = Field(default_factory=list)
     acknowledged_care_reminder_ids: list[str] = Field(default_factory=list)
     progress: dict[str, object] = Field(default_factory=dict)
     story_progression: dict[str, object] = Field(default_factory=dict)

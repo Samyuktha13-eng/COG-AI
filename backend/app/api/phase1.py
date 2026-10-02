@@ -1,5 +1,6 @@
 import json
 import re
+from io import BytesIO
 import requests
 from pathlib import Path
 
@@ -728,7 +729,7 @@ async def record_interaction(
     if session is None:
         raise HTTPException(status_code=404, detail="Game session not found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).isoformat()
 
     event = SessionEvent(
         event_id=str(uuid.uuid4()),
@@ -756,12 +757,18 @@ async def record_interaction(
     session.caregiver_guidance = ["Next memory prompt"]
 
     supported, unsupported = analyse_events([event])
-    score = 100 if supported else 0 if unsupported else None
+    scored_items = len(supported) + len(unsupported)
+    score = round(len(supported) * 100 / scored_items) if scored_items else None
     return {
         "event_id": event.event_id,
         "stored": True,
         "score": score,
-        "score_label": "Story match" if supported else "Different or unclear response" if unsupported else "Not scored",
+        "score_label": (
+            "Story match" if score == 100 else
+            "Partial story match" if score else
+            "Different or unclear response" if score == 0 else
+            "Not scored"
+        ),
     }
 
 
@@ -772,38 +779,70 @@ _SESSION_EVENTS: dict[str, list[SessionEvent]] = {}
 @router.post("/game/sessions/{session_id}/interaction/audio")
 async def record_interaction_audio(
     session_id: str,
-    beat_id: str = Form(...),
-    beat_sequence: int = Form(...),
-    question: str = Form(...),
+    beat_id: str = Form(default=""),
+    beat_sequence: int = Form(default=1),
+    question: str = Form(default=""),
     transcript: str | None = Form(default=None),
     transcript_language: str = Form(default="en"),
     asr_confidence: float | None = Form(default=None),
-    audio: UploadFile = File(...),
+    audio: UploadFile | None = File(default=None),
 ):
     """Multipart form version: audio file + metadata in one request."""
     session = SESSIONS.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Game session not found")
 
+    resolved_beat_id = beat_id or getattr(session, "current_beat_id", None) or session.story_progression.get("current_beat") or ""
+    resolved_question = question or getattr(session, "current_question", None) or session.story_progression.get("current_question") or ""
+    resolved_beat_sequence = beat_sequence or int(session.story_progression.get("current_beat_sequence") or 1)
+
+    if not audio and not transcript:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "empty_audio",
+                "message": "No voice recording or transcript was provided for this interaction.",
+            },
+        )
+
+    if not audio:
+        audio = UploadFile(filename="voice_response.wav", file=BytesIO(b""))
+
     data = await audio.read()
-    audio_path = save_audio(session.patient_id, session_id, beat_id, beat_sequence, data) if data else None
+    audio_path = save_audio(session.patient_id, session_id, resolved_beat_id, resolved_beat_sequence, data) if data else None
     await audio.seek(0)
     try:
         from .voice import _run_asr
         transcript = transcript or await _run_asr(audio, session_id, transcript_language)
+    except HTTPException:
+        raise
     except Exception:
-        transcript = transcript or ""
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "asr_unavailable",
+                "message": "Speech recognition failed before a transcript could be created.",
+            },
+        )
+    if not transcript or not transcript.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "empty_transcript",
+                "message": "No speech was detected in the recording. Please speak clearly and try again.",
+            },
+        )
     response = classify_live_response(transcript)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).isoformat()
 
     event = SessionEvent(
         event_id=str(uuid.uuid4()),
         session_id=session_id,
         patient_id=session.patient_id,
         story_id=session.story_id,
-        beat_id=beat_id,
-        sequence=beat_sequence,
-        question=question,
+        beat_id=resolved_beat_id,
+        sequence=resolved_beat_sequence,
+        question=resolved_question,
         question_language=transcript_language,
         spoken=True,
         audio_path=audio_path,
@@ -815,24 +854,34 @@ async def record_interaction_audio(
         completed_at=now,
     )
     supported, unsupported = analyse_events([event])
-    response["match_status"] = "matched" if supported else "unmatched" if unsupported else "unscored"
-    response["feedback_emoji"] = "✅" if supported else "🤔" if unsupported else "💬"
-    response["score"] = 100 if supported else 0 if unsupported else None
+    scored_items = len(supported) + len(unsupported)
+    score = round(len(supported) * 100 / scored_items) if scored_items else None
+    response["match_status"] = (
+        "matched" if score == 100 else
+        "partial" if score and score > 0 else
+        "unmatched" if score == 0 else
+        "unscored"
+    )
+    response["feedback_emoji"] = "✅" if score == 100 else "🔎" if score and score > 0 else "🤔" if score == 0 else "💬"
+    response["score"] = score
     response["score_label"] = (
-        "Story match" if supported else
-        "Different or unclear response" if unsupported else
+        "Story match" if score == 100 else
+        "Partial story match" if score and score > 0 else
+        "Different or unclear response" if score == 0 else
         "Not scored"
     )
     save_event(event)
     session.event_ids.append(event.event_id)
     session.last_transcript = transcript
     session.progress["response_recorded"] = bool(transcript)
-    session.story_progression["current_beat"] = beat_id
-    session.story_progression["current_beat_sequence"] = beat_sequence
+    session.story_progression["current_beat"] = resolved_beat_id
+    session.story_progression["current_beat_sequence"] = resolved_beat_sequence
     session.caregiver_guidance = [response["guidance"]]
     return {
         "event_id": event.event_id,
         "stored": True,
+        "beat_id": resolved_beat_id,
+        "question": resolved_question,
         "transcript": transcript,
         **response,
     }
@@ -870,7 +919,7 @@ def end_session(session_id: str):
         patient_name=patient_name,
         stories_played=[session.story_id],
         events=events,
-        started_at=session.started_at,
+        started_at=datetime.fromisoformat(session.created_at) if session.created_at else datetime.now(timezone.utc),
     )
 
     from ..models.game_session import SessionStatus

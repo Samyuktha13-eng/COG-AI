@@ -7,11 +7,18 @@ pymongo>=4.10
 # Local English voice commands using the offline Whisper adapter.
 openai-whisper>=20250625
 # Indic-Transcribe Canary multilingual ASR runtime.
+torch>=2.1
 torchaudio>=2.1
 transformers>=4.44
 sentencepiece>=0.1.99
 soundfile>=0.12
 av>=18.0
+# Indic Parler multilingual TTS runtime.
+parler-tts>=0.2.2
+# ONNX Runtime for the local INT8 Indic Conformer checkpoint.
+onnxruntime>=1.18
+# Runtime required by the local INT8 Indic Conformer checkpoint.
+onnxruntime>=1.18
 # FastAPI server/runtime for Render startup and local app boot.
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0

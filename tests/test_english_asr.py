@@ -10,6 +10,14 @@ def test_validate_whisper_model_missing(tmp_path: Path):
         validate_whisper_model(tmp_path)
 
 
+def test_validate_whisper_model_finds_nested_project_weights(tmp_path: Path):
+    model_path = tmp_path / "cogniv-ai" / "models" / "whisper-base-en" / "base.en.pt"
+    model_path.parent.mkdir(parents=True)
+    model_path.write_bytes(b"checkpoint")
+
+    assert validate_whisper_model(tmp_path) == model_path
+
+
 def test_english_asr_loads_once_and_returns_structured_result(tmp_path: Path, monkeypatch):
     model_path = tmp_path / "models" / "whisper-base-en" / "base.en.pt"
     model_path.parent.mkdir(parents=True)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,17 +21,51 @@ class IndicTranscribeASR:
         self.device = device
         self._engine: Any = None
 
+    @staticmethod
+    def _contains_checkpoint(model_dir: Path) -> bool:
+        return (model_dir / "config.json").is_file() and (model_dir / "model.safetensors").is_file()
+
+    def resolve_model_dir(self) -> Path:
+        configured = os.environ.get("INDIC_TRANSCRIBE_MODEL_DIR")
+        candidates = [Path(configured)] if configured else []
+        candidates.append(self.model_dir)
+
+        cache_roots = [
+            Path(value)
+            for value in (os.environ.get("HF_HUB_CACHE"), os.environ.get("HF_CACHE_DIR"))
+            if value
+        ]
+        hf_home = os.environ.get("HF_HOME")
+        cache_roots.append(Path(hf_home) / "hub" if hf_home else Path.home() / ".cache" / "huggingface" / "hub")
+        if os.name == "nt" and Path("D:/cogniv-huggingface").is_dir():
+            cache_roots.append(Path("D:/cogniv-huggingface"))
+
+        for cache_root in dict.fromkeys(cache_roots):
+            repo_cache = cache_root / "models--bodhan-ai--indic-transcribe-core"
+            refs_main = repo_cache / "refs" / "main"
+            if refs_main.is_file():
+                candidates.append(repo_cache / "snapshots" / refs_main.read_text(encoding="utf-8").strip())
+            candidates.extend(sorted((repo_cache / "snapshots").glob("*"), reverse=True))
+
+        for candidate in candidates:
+            if self._contains_checkpoint(candidate):
+                return candidate
+        raise CanaryUnavailableError(
+            "Indic-Transcribe checkpoint weights were not found. Expected config.json and model.safetensors "
+            f"under {self.model_dir} or a configured Hugging Face cache."
+        )
+
     def load(self) -> "IndicTranscribeASR":
         if self._engine is not None:
             return self
-        if not self.model_dir.exists():
-            raise CanaryUnavailableError(f"Indic-Transcribe model not found: {self.model_dir}")
         try:
-            model_path = str(self.model_dir.resolve())
+            resolved_model_dir = self.resolve_model_dir()
+            model_path = str(resolved_model_dir.resolve())
             if model_path not in sys.path:
                 sys.path.insert(0, model_path)
             runtime = importlib.import_module("indic_transcribe")
             self._engine = runtime.IndicTranscribe.from_pretrained(model_path, device=self.device)
+            self.device = getattr(self._engine, "device", self.device)
         except Exception as exc:
             raise CanaryUnavailableError(f"Indic-Transcribe failed to load: {exc}") from exc
         return self

@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -24,6 +25,14 @@ QUALITY_LTX_NEGATIVE_PROMPT = (
     "object duplication, scene transition, camera movement, camera shake, zoom, pan, "
     "flickering, unstable clothing, reversed action, backwards motion, opposite action"
 )
+VIDEO_EXTENSION_BY_CONTENT_TYPE = {
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+    "video/x-m4v": ".m4v",
+    "video/ogg": ".ogv",
+}
+SUPPORTED_VIDEO_EXTENSIONS = set(VIDEO_EXTENSION_BY_CONTENT_TYPE.values())
 
 
 class PixazoVideoService:
@@ -181,12 +190,18 @@ class PixazoVideoService:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        output_path = output_dir / f"{job.beat_id}.mp4"
-
         response = requests.get(job.output_url, timeout=180)
         response.raise_for_status()
 
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        extension = VIDEO_EXTENSION_BY_CONTENT_TYPE.get(content_type)
+        if extension is None:
+            url_extension = Path(urlparse(job.output_url).path).suffix.lower()
+            extension = url_extension if url_extension in SUPPORTED_VIDEO_EXTENSIONS else ".mp4"
+
+        output_path = output_dir / f"{job.beat_id}{extension}"
+
         output_path.write_bytes(response.content)
-        job.local_path = str(output_path)
+        job.output_path = str(output_path)
 
         return job

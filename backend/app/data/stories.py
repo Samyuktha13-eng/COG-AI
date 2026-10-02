@@ -502,9 +502,13 @@ def _align_beats_to_scene_images() -> None:
             scenes_by_story[story_id].append(scene)
 
     for story in STORIES:
+        story_scenes = scenes_by_story.get(story.id, [])
+        if not story_scenes:
+            continue
+
         existing = {beat.sequence: beat for beat in story.beats}
         aligned: list[StoryBeat] = []
-        for scene in sorted(scenes_by_story.get(story.id, []), key=lambda item: item.sequence):
+        for scene in sorted(story_scenes, key=lambda item: item.sequence):
             beat = existing.get(scene.sequence)
             if beat is None:
                 beat = StoryBeat(

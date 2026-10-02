@@ -5,6 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+VIDEO_EXTENSIONS = {".mp4", ".m4v", ".mov", ".webm", ".ogv"}
 
 
 def _env_dir(*names: str) -> list[Path]:
@@ -49,7 +50,10 @@ def _normalize_name(value: str) -> str:
 
 def _find_output_root() -> Path:
     for candidate in OUTPUT_CANDIDATES:
-        if candidate.exists() and any(candidate.rglob("*.mp4")):
+        if candidate.exists() and any(
+            path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+            for path in candidate.rglob("*")
+        ):
             return candidate.resolve()
     for candidate in OUTPUT_CANDIDATES:
         if candidate.exists():
@@ -58,18 +62,27 @@ def _find_output_root() -> Path:
 
 
 def _guess_story_id(relative_path: str, folder_name: str, stem: str) -> str | None:
-    haystacks = [relative_path, folder_name, stem]
-    joined = " ".join(_normalize_name(item) for item in haystacks)
+    def match_name(value: str, prefix_only: bool = False) -> str | None:
+        tokens = _normalize_name(value).split("_")
+        aliases = sorted(_STORY_NAME_ALIASES, key=lambda alias: (len(alias.split("_")), len(alias)), reverse=True)
+        for alias in aliases:
+            alias_tokens = alias.split("_")
+            starts = (0,) if prefix_only else range(max(0, len(tokens) - len(alias_tokens) + 1))
+            for start in starts:
+                if tokens[start:start + len(alias_tokens)] == alias_tokens:
+                    return _STORY_NAME_ALIASES[alias]
+        return None
 
-    for key, story_id in _STORY_NAME_ALIASES.items():
-        if key in joined:
+    story_id = match_name(folder_name)
+    if story_id:
+        return story_id
+
+    for parent in reversed(Path(relative_path).parts[:-1]):
+        story_id = match_name(parent)
+        if story_id:
             return story_id
 
-    for clue in ("jasmine", "mango", "rain", "school", "station", "railway", "reminder"):
-        if clue in joined:
-            return _STORY_NAME_ALIASES.get(clue)
-
-    return None
+    return match_name(stem, prefix_only=True)
 
 
 def _guess_beat_id(story_id: str, stem: str) -> str | None:
@@ -112,26 +125,36 @@ def _guess_beat_id(story_id: str, stem: str) -> str | None:
 
 
 def _build_generated_video_catalog(output_root: str | Path | None = None) -> dict[str, dict[str, dict[str, str]]]:
+    from ..data.stories import get_all_stories
+
     root = Path(output_root) if output_root is not None else _find_output_root()
     root = root.resolve()
     catalog: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    canonical_beats = {
+        story.id: {beat.id for beat in story.beats}
+        for story in get_all_stories()
+    }
 
     if not root.exists():
         return {}
 
-    for mp4_file in sorted(root.rglob("*.mp4")):
-        relative_path = mp4_file.relative_to(root).as_posix()
-        story_id = _guess_story_id(relative_path, mp4_file.parent.name, mp4_file.stem)
+    video_files = (
+        path for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+    )
+    for video_file in sorted(video_files):
+        relative_path = video_file.relative_to(root).as_posix()
+        story_id = _guess_story_id(relative_path, video_file.parent.name, video_file.stem)
         if story_id is None:
             continue
 
-        beat_id = _guess_beat_id(story_id, mp4_file.stem)
-        if beat_id is None:
+        beat_id = _guess_beat_id(story_id, video_file.stem)
+        if beat_id is None or beat_id not in canonical_beats.get(story_id, set()):
             continue
 
         catalog[story_id][beat_id] = {
             "path": relative_path,
-            "filename": mp4_file.name,
+            "filename": video_file.name,
             "url": f"/generated-videos/{relative_path}",
         }
 

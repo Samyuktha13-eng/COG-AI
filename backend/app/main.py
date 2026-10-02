@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import config as _config
 from .api.game import router as game_router
 from .api.generation import router as generation_router
 from .api.grounding import router as grounding_router

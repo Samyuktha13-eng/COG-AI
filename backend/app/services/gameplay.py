@@ -8,6 +8,7 @@ from ..models.game_session import GameSession, SessionStatus
 from ..models.video_job import VideoJobStatus
 from .gameplay_events import record_gameplay_event
 from .story_playback import StoryAgent
+from .story_translation import require_translation_to_language
 
 
 class VideoProvider(Protocol):
@@ -25,14 +26,39 @@ class PendingVideo:
 class LibraryVideoProvider:
     """Return a completed scene URL when available, otherwise treat the beat as unresolved."""
 
-    def request(self, patient_id: str, story_id: str, beat_id: str) -> tuple[str, str | None]:
+    @staticmethod
+    def _as_datetime(value):
+        if value is None:
+            return None
+        if hasattr(value, "isoformat"):
+            return value
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
+
+    def request(self, *args, **kwargs):
         from datetime import datetime, timezone
 
         from ..services.patient_library import VIDEO_JOBS
 
+        if len(args) == 2:
+            story_id, beat_id = args
+            patient_id = None
+        elif len(args) == 3:
+            patient_id, story_id, beat_id = args
+        else:
+            patient_id = kwargs.get("patient_id")
+            story_id = kwargs.get("story_id")
+            beat_id = kwargs.get("beat_id")
+            if story_id is None or beat_id is None:
+                raise TypeError("LibraryVideoProvider.request expects (story_id, beat_id) or (patient_id, story_id, beat_id)")
+
         matches = [
             job for job in VIDEO_JOBS.values()
-            if job.patient_id == patient_id and job.story_id == story_id and job.scene_id == beat_id
+            if (job.story_id == story_id and job.scene_id == beat_id)
+            and (patient_id is None or job.patient_id == patient_id)
         ]
         if not matches:
             return "no_job", None
@@ -40,7 +66,7 @@ class LibraryVideoProvider:
         completed = [job for job in matches if job.status == VideoJobStatus.COMPLETED]
         latest = max(
             completed or matches,
-            key=lambda job: (job.updated_at or datetime.min.replace(tzinfo=timezone.utc)),
+            key=lambda job: (self._as_datetime(job.updated_at) or datetime.min.replace(tzinfo=timezone.utc)),
         )
 
         if latest.status == VideoJobStatus.COMPLETED:
@@ -190,12 +216,20 @@ class GamePlayService:
         narration_data = NARRATIONS.get(beat.id, {})
         narration_by_language = beat.narration_by_language or {"en": beat.narration or narration_data.get("opening", "")}
         self.session.narration_language = requested_language
-        self.session.narration_text = narration_by_language.get(requested_language) or narration_by_language.get("en", beat.narration)
+
+        narration_text = narration_by_language.get(requested_language) or narration_by_language.get("en", beat.narration)
+        if requested_language not in narration_by_language and requested_language != "en":
+            narration_text = require_translation_to_language(narration_text, requested_language)
+        self.session.narration_text = narration_text
 
         # Question — multilingual
         question_by_language = narration_data.get("question_by_language", {})
         question = question_by_language.get(requested_language) or narration_data.get("question", "")
-        question_language = requested_language if requested_language in question_by_language else "en"
+        if requested_language not in question_by_language and requested_language != "en":
+            question = require_translation_to_language(
+                question or narration_data.get("question", ""), requested_language
+            )
+        question_language = requested_language if requested_language in question_by_language or requested_language != "en" else "en"
         self.session.current_question = question
 
         # Keep the current beat pending until the patient answers or skips it.
@@ -242,7 +276,7 @@ class GamePlayService:
             "narration": {
                 "language": self.session.narration_language,
                 "text": self.session.narration_text,
-                "fallback_used": requested_language not in narration_by_language,
+                "fallback_used": False,
             },
             "question": question,
             "question_language": question_language,

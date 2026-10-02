@@ -12,6 +12,7 @@ class GenerationStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    PENDING = "pending"
 
 
 class GenerationJob(CognivBaseModel):

@@ -6,9 +6,113 @@ from pathlib import Path
 from typing import Any
 import sys
 
+from .asr_router import ASRRouter, INDIAN_LANGUAGE_CODES, LANGUAGE_LABELS
+
 
 class TTSUnavailableError(RuntimeError):
-    """Raised when IndicF5 cannot be loaded or used."""
+    """Raised when a local text-to-speech model cannot be loaded or used."""
+
+
+class IndicParlerTTS:
+    """Lazy multilingual speech synthesis using the local Indic Parler checkpoint."""
+
+    SUPPORTED_LANGUAGES = frozenset({"en", *INDIAN_LANGUAGE_CODES})
+    EXPERIMENTAL_LANGUAGES = frozenset({"ks", "pa"})
+
+    def __init__(self, model_dir: str | Path, device: str | None = None) -> None:
+        self.model_dir = Path(model_dir)
+        self.device = device
+        self._model: Any = None
+        self._prompt_tokenizer: Any = None
+        self._description_tokenizer: Any = None
+
+    def load(self) -> "IndicParlerTTS":
+        if self._model is not None:
+            return self
+        if not (self.model_dir / "config.json").is_file() or not (self.model_dir / "model.safetensors").is_file():
+            raise TTSUnavailableError(f"Indic Parler checkpoint not found under {self.model_dir}")
+        try:
+            import torch
+            from parler_tts import ParlerTTSForConditionalGeneration
+            from transformers import AutoTokenizer
+
+            self.device = self.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
+            self._model = ParlerTTSForConditionalGeneration.from_pretrained(
+                str(self.model_dir), local_files_only=True
+            ).to(self.device).eval()
+            self._prompt_tokenizer = AutoTokenizer.from_pretrained(
+                str(self.model_dir), local_files_only=True
+            )
+            description_model = self._model.config.text_encoder._name_or_path
+            self._description_tokenizer = AutoTokenizer.from_pretrained(
+                description_model, local_files_only=True
+            )
+        except Exception as exc:
+            self.unload()
+            raise TTSUnavailableError(f"Indic Parler failed to load: {exc}") from exc
+        return self
+
+    def synthesize(
+        self,
+        text: str,
+        output_path: str | Path,
+        language: str | None = None,
+    ) -> Path:
+        if not text or not text.strip():
+            raise ValueError("TTS text cannot be empty.")
+        selected_language = ASRRouter.language_code(language or "en")
+        if selected_language not in self.SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported Indic Parler language: {language}")
+        if self._model is None:
+            self.load()
+        try:
+            import numpy as np
+            import soundfile as sf
+            import torch
+
+            description = self._description_tokenizer(
+                self._description_for_language(selected_language), return_tensors="pt"
+            ).to(self.device)
+            prompt = self._prompt_tokenizer(text.strip(), return_tensors="pt").to(self.device)
+            with torch.inference_mode():
+                audio = self._model.generate(
+                    input_ids=description.input_ids,
+                    attention_mask=description.attention_mask,
+                    prompt_input_ids=prompt.input_ids,
+                    prompt_attention_mask=prompt.attention_mask,
+                    max_new_tokens=512,
+                    do_sample=False,
+                ).cpu().numpy().squeeze()
+            output = Path(output_path)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            sf.write(
+                str(output),
+                np.asarray(audio, dtype=np.float32),
+                samplerate=int(self._model.config.sampling_rate),
+            )
+            return output
+        except Exception as exc:
+            raise TTSUnavailableError(f"Indic Parler synthesis failed: {exc}") from exc
+
+    @staticmethod
+    def _description_for_language(language: str) -> str:
+        language_name = LANGUAGE_LABELS[language]
+        return (
+            f"A clear female speaker speaks {language_name} slowly in a calm, warm, conversational tone. "
+            "The recording is clean and close to the microphone."
+        )
+
+    def unload(self) -> None:
+        self._model = None
+        self._prompt_tokenizer = None
+        self._description_tokenizer = None
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
 
 
 class IndicF5TTS:
@@ -39,7 +143,7 @@ class IndicF5TTS:
             raise TTSUnavailableError(f"IndicF5 failed to load: {exc}") from exc
         return self
 
-    def synthesize(self, text: str, output_path: str | Path) -> Path:
+    def synthesize(self, text: str, output_path: str | Path, language: str | None = None) -> Path:
         if not text or not text.strip():
             raise ValueError("TTS text cannot be empty.")
         if self._model is None:

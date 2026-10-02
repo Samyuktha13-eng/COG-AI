@@ -11,8 +11,20 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 def _resolve_story_image_root() -> Path:
     candidates = [
         PROJECT_ROOT / "Patient story image",
+        PROJECT_ROOT / "cogniv-ai" / "Patient story image",
         PROJECT_ROOT / "story-images",
     ]
+    populated = []
+    for candidate in candidates:
+        if candidate.is_dir():
+            image_count = sum(
+                path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+                for path in candidate.rglob("*")
+            )
+            if image_count:
+                populated.append((image_count, candidate))
+    if populated:
+        return max(populated, key=lambda item: item[0])[1]
     for candidate in candidates:
         if candidate.exists():
             return candidate

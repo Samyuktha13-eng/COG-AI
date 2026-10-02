@@ -11,6 +11,7 @@ class CarePlanReminder(CognivBaseModel):
     task: str = ""
     reminder_type: str = "routine"
     time: str = "09:00"
+    enabled: bool = True
     created_at: str | None = None
 
 

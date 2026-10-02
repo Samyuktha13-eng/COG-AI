@@ -1,6 +1,8 @@
 from backend.app.api.generation import _build_motion_prompt
 from backend.app.models.beat import StoryBeat
+from pathlib import Path
 from backend.app.services.pixazo import PixazoVideoService
+from backend.app.models.generation import GenerationJob
 
 
 def test_build_motion_prompt_uses_temporal_sequence():
@@ -36,6 +38,8 @@ def test_quality_pixazo_payload_uses_image_strength_and_prompt_controls(monkeypa
     captured = {}
 
     class DummyResponse:
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
@@ -70,3 +74,20 @@ def test_quality_pixazo_payload_uses_image_strength_and_prompt_controls(monkeypa
     assert "negative_prompt" in captured["json"]
     assert "ghosting" in captured["json"]["negative_prompt"]
     assert "camera_motion" not in captured["json"]
+
+def test_download_uses_response_video_extension_and_declared_output_path(tmp_path, monkeypatch):
+    class DummyResponse:
+        headers = {"Content-Type": "video/webm; codecs=vp9"}
+        content = b"video-bytes"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("backend.app.services.pixazo.requests.get", lambda url, timeout: DummyResponse())
+    job = GenerationJob(beat_id="mango_03", output_url="https://example.com/generated-video")
+
+    result = PixazoVideoService().download(job, tmp_path)
+
+    output_path = Path(result.output_path)
+    assert output_path.name == "mango_03.webm"
+    assert output_path.read_bytes() == b"video-bytes"
