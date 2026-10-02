@@ -9,6 +9,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _resolve_story_image_root() -> Path:
+    configured_root = os.getenv("STORY_IMAGE_DIR", "").strip()
+    if configured_root:
+        return Path(configured_root)
+
     candidates = [
         PROJECT_ROOT / "Patient story image",
         PROJECT_ROOT / "cogniv-ai" / "Patient story image",

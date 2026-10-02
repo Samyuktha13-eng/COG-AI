@@ -29,6 +29,10 @@ services:
         sync: false
       - key: AZURE_TRANSLATOR_ENDPOINT
         value: https://api.cognitive.microsofttranslator.com
+      - key: PIXAZO_API_KEY
+        sync: false
+      - key: STORY_IMAGE_DIR
+        value: /var/data/story-images
       - key: GENERATED_VIDEOS_DIR
         value: /var/data/outputs
       - key: PATIENT_LIBRARY_DIR

@@ -12,3 +12,10 @@ def test_populated_nested_story_image_root_beats_empty_top_level(tmp_path: Path,
     monkeypatch.setattr(assets, "PROJECT_ROOT", tmp_path)
 
     assert assets._resolve_story_image_root() == nested
+
+
+def test_configured_story_image_root_overrides_repository_paths(monkeypatch):
+    configured = Path("/var/data/story-images")
+    monkeypatch.setenv("STORY_IMAGE_DIR", str(configured))
+
+    assert assets._resolve_story_image_root() == configured
