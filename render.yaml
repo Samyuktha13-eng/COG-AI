@@ -34,7 +34,7 @@ services:
       - key: STORY_IMAGE_DIR
         value: /var/data/story-images
       - key: GENERATED_VIDEOS_DIR
-        value: /var/data/outputs
+        value: backend/media/generated-videos
       - key: PATIENT_LIBRARY_DIR
         value: /var/data/outputs/patient_library
       - key: OUTPUTS_DIR
