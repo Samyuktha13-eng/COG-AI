@@ -2364,8 +2364,8 @@
 
       function renderReminderExperiences(due, nextReminder, jobs) {
         if (!ui.reminderExperienceGrid) return;
-        const dueIds = new Set(due.map((item) => item.reminder_id));
-        const reminders = due.length ? due : nextReminder ? [nextReminder] : [];
+        const dueIds = new Set((due || []).map((item) => item.reminder_id));
+        const reminders = Array.isArray(due) && due.length ? due : nextReminder ? [nextReminder] : [];
         reminderCards = reminders;
         ui.reminderExperienceGrid.replaceChildren();
         if (!reminders.length) {
@@ -2378,36 +2378,68 @@
 
         reminders.forEach((reminder) => {
           const unlocked = dueIds.has(reminder.reminder_id);
-          const job = jobs.find((item) => item.reminder_id === reminder.reminder_id);
+          const job = jobs.find((item) => item.reminder_id === reminder.reminder_id) || {};
+          const scoreValue = unlocked ? 100 : 75;
+          const scoreText = `Score ${scoreValue}%`;
           const card = document.createElement('article');
           card.className = `reminder-experience-card ${unlocked ? 'unlocked' : 'locked'}`;
+
           const icon = document.createElement('div');
           icon.className = 'reminder-experience-icon';
           icon.textContent = unlocked ? reminderIcon(reminder) : '🔒';
+
           const copy = document.createElement('div');
           const title = document.createElement('h3');
           title.textContent = reminder.task || 'Care reminder';
+
           const description = document.createElement('p');
-          description.textContent = unlocked ? 'This reminder is ready now.' : `Unlocks at ${reminder.time || 'the scheduled time'}.`;
+          description.textContent = unlocked ? 'This reminder is ready now.' : `Scheduled for ${reminder.time || 'the next care window'}.`;
+
           const status = document.createElement('span');
           status.className = 'reminder-lock-status';
-          status.textContent = unlocked ? `🔓 Unlocked • video ${job?.status || 'ready to prepare'}` : '🔒 Locked until the reminder time';
-          copy.append(title, description, status);
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = unlocked ? 'action-button' : 'secondary action-button';
-          button.disabled = !unlocked;
-          button.textContent = unlocked ? 'Open reminder' : 'Locked';
-          button.addEventListener('click', () => selectReminder(reminder, job));
-          card.append(icon, copy, button);
-          if (job?.output_url && job.status === 'completed') {
+          status.textContent = unlocked ? `🔓 Unlocked • ${job.status || 'ready to open'}` : '🔒 Locked until the reminder time';
+
+          const score = document.createElement('div');
+          score.className = 'reminder-lock-status';
+          score.style.color = unlocked ? '#0f766e' : '#b45309';
+          score.textContent = scoreText;
+
+          copy.append(title, description, status, score);
+
+          const actionButton = document.createElement('button');
+          actionButton.type = 'button';
+          actionButton.className = unlocked ? 'action-button' : 'secondary action-button';
+          actionButton.textContent = unlocked ? 'Open reminder' : 'Locked';
+          actionButton.disabled = !unlocked;
+          actionButton.addEventListener('click', () => selectReminder(reminder, job));
+
+          const videoButton = document.createElement('button');
+          videoButton.type = 'button';
+          videoButton.className = job.output_url ? 'secondary action-button' : 'secondary action-button';
+          videoButton.disabled = !job.output_url;
+          videoButton.textContent = job.output_url ? 'Watch video' : 'Video unavailable';
+          videoButton.addEventListener('click', () => {
+            if (!job.output_url) return;
             const video = document.createElement('video');
             video.className = 'reminder-video-preview';
             video.controls = true;
             video.src = apiUrl(job.output_url);
+            video.autoplay = true;
+            video.playsInline = true;
             video.setAttribute('aria-label', `${reminder.task || 'Care'} reminder video`);
+
+            const existing = card.querySelector('.reminder-video-preview');
+            if (existing) existing.remove();
             card.appendChild(video);
-          }
+            video.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          });
+
+          const actionGroup = document.createElement('div');
+          actionGroup.style.display = 'grid';
+          actionGroup.style.gap = '8px';
+          actionGroup.append(actionButton, videoButton);
+
+          card.append(icon, copy, actionGroup);
           ui.reminderExperienceGrid.appendChild(card);
         });
       }
@@ -4417,22 +4449,22 @@
       async function loadDueReminders() {
         try {
           const prewarm = await api(`/api/patients/${patientId}/care-plan/reminders/videos/prewarm?lead_minutes=15`, { method: 'POST' });
-          const result = await api(`/api/patients/${patientId}/care-plan/reminders/due?window_minutes=30`);
+          const result = await api(`/api/patients/${patientId}/care-plan/reminders/due?window_minutes=1440`);
           const due = result.due_reminders || [];
           const nextReminder = result.next_reminder;
-          renderReminderExperiences(due, nextReminder, prewarm?.scheduled || []);
-          const scheduledVideo = (prewarm?.scheduled || []).find((job) => job.status === 'processing' || job.status === 'completed');
+          const jobs = prewarm?.scheduled || [];
+          renderReminderExperiences(due, nextReminder, jobs);
+
           if (ui.reminderVideoSchedule) {
-            const jobs = prewarm?.scheduled || [];
             ui.reminderVideoSchedule.innerHTML = jobs.length
-              ? `<strong>Reminder videos</strong><br>${jobs.map((job) => `🎬 ${job.status || 'scheduled'}${job.scheduled_for ? ` • ${job.scheduled_for}` : ''}`).join('<br>')}`
+              ? `<strong>Reminder videos</strong><br>${jobs.map((job) => `🎬 ${job.status || 'scheduled'}${job.reminder_id ? ` • ${job.reminder_id}` : ''}`).join('<br>')}`
               : '🎬 Reminder videos will be prepared 15 minutes before each scheduled cue.';
           }
 
           if (!due.length) {
             ui.reminderStatusText.textContent = nextReminder ? 'Next reminder' : 'No reminder';
             ui.reminderPanel.innerHTML = nextReminder
-              ? `<div style="margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">⏰ Next care cue: ${nextReminder.task} at ${nextReminder.time} · ${nextReminder.reminder_type}<br><span style="font-size:.82rem; color:#0f766e;">🎬 ${scheduledVideo ? 'Reminder video is being prepared.' : 'Reminder video will prewarm 15 minutes before the cue.'}</span></div>`
+              ? `<div style="margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">⏰ Next care cue: ${nextReminder.task} at ${nextReminder.time} · ${nextReminder.reminder_type}<br><span style="font-size:.82rem; color:#0f766e;">🎬 Reminder videos are listed above and can be opened when ready.</span></div>`
               : '<div>There is no reminder due at this time. The next care cue will appear when the schedule is active.</div>';
             ui.chapterBadge.textContent = nextReminder ? 'Reminder scheduled' : 'Ready';
             ui.chapterBadge.style.background = nextReminder ? 'rgba(245,158,11,.15)' : 'rgba(16,185,129,.12)';
@@ -4440,12 +4472,12 @@
             return;
           }
 
-          ui.reminderStatusText.textContent = due.length > 1 ? `${due.length} reminders due` : 'Reminder due now';
+          ui.reminderStatusText.textContent = due.length > 1 ? `${due.length} reminders are due or scheduled` : 'Reminder due now';
           ui.reminderPanel.innerHTML = due.map((item) => {
             const timeLabel = item.time ? ` at ${item.time}` : ' now';
             return `<div style="margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2);">⏰ ${item.task}${timeLabel} · ${item.reminder_type}</div>`;
           }).join('');
-          ui.reportStatus.textContent = due.length ? `Care reminder active: ${due[0].task}${scheduledVideo ? ' • reminder video prepared' : ''}` : ui.reportStatus.textContent;
+          ui.reportStatus.textContent = due.length ? `Care reminder active: ${due[0].task}` : ui.reportStatus.textContent;
           ui.chapterBadge.textContent = 'Reminder active';
           ui.chapterBadge.style.background = 'rgba(245,158,11,.15)';
           ui.chapterBadge.style.color = '#b45309';
