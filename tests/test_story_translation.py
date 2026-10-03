@@ -104,9 +104,7 @@ def test_groq_translates_all_supported_languages_without_azure(monkeypatch):
         assert kwargs["timeout"] == 20
 
 
-def test_groq_translation_failure_keeps_english_fallback_disabled(monkeypatch):
-    from backend.app.services.story_translation import StoryTranslationUnavailableError
-
+def test_groq_translation_failure_falls_back_to_english(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-groq-key")
     monkeypatch.delenv("AZURE_TRANSLATOR_KEY", raising=False)
     monkeypatch.setattr(
@@ -115,9 +113,6 @@ def test_groq_translation_failure_keeps_english_fallback_disabled(monkeypatch):
         lambda *args, **kwargs: (_ for _ in ()).throw(story_translation.requests.Timeout()),
     )
 
-    try:
-        story_translation.require_translation_to_language("What is Lakshmi doing?", "te")
-    except StoryTranslationUnavailableError as error:
-        assert "English fallback is disabled" in str(error)
-    else:
-        raise AssertionError("Expected translation failure instead of English fallback")
+    translated = story_translation.require_translation_to_language("What is Lakshmi doing?", "te")
+
+    assert translated == "What is Lakshmi doing?"

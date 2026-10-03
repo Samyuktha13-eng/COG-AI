@@ -161,18 +161,20 @@ def translate_to_language(text: str, language: str) -> str | None:
 
 
 class StoryTranslationUnavailableError(RuntimeError):
-    """Raised when requested-language story text cannot be produced."""
+    """Backward-compatible exception for callers that still expect a translation failure signal."""
 
 
 def require_translation_to_language(text: str, language: str) -> str:
-    translated = translate_to_language(text, language)
-    if not translated:
-        target_language = _normalize_language_code(language)
-        raise StoryTranslationUnavailableError(
-            f"Translation to '{target_language}' is unavailable. Check Groq or Azure Translator configuration. "
-            "English fallback is disabled."
-        )
-    return translated
+    """Return the requested translation when available; otherwise fall back to the English source text."""
+    if not text or not text.strip():
+        return text
+
+    target_language = _normalize_language_code(language)
+    if target_language in {"", "en"}:
+        return text
+
+    translated = translate_to_language(text, target_language)
+    return translated if translated else text
 
 
 def translate_text(text: str, language: str) -> str | None:

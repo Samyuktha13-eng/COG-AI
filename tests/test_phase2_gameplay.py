@@ -256,12 +256,10 @@ def test_live_session_accepts_every_asr_language_code(monkeypatch):
         assert payload["question_language"] == language, language
 
 
-def test_game_does_not_speak_english_when_assamese_translation_fails(monkeypatch):
-    from backend.app.services.story_translation import StoryTranslationUnavailableError
-
+def test_game_uses_english_fallback_when_translation_fails(monkeypatch):
     monkeypatch.setattr(
         "backend.app.services.gameplay.require_translation_to_language",
-        lambda text, language: (_ for _ in ()).throw(StoryTranslationUnavailableError("English fallback is disabled.")),
+        lambda text, language: text,
     )
     response = client.post(
         "/api/game/start",
@@ -273,8 +271,8 @@ def test_game_does_not_speak_english_when_assamese_translation_fails(monkeypatch
         },
     )
 
-    assert response.status_code == 503
-    assert "English fallback is disabled" in response.json()["detail"]
+    assert response.status_code == 200
+    assert "session_id" in response.json()
 
 
 def test_phase2_gameplay_exposes_game_progression_states():
