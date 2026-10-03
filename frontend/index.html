@@ -2362,6 +2362,17 @@
         return { medicine: '💊', water: '💧', breakfast: '🍽️', lunch: '🍛', walk: '🚶', bedtime: '🌙', morning: '🌤️', family_call: '📞', gardening: '🌱', appointment: '📅' }[reminder.reminder_type] || '⏰';
       }
 
+      function bundledReminderVideoUrl(reminder) {
+        const task = `${reminder.task || ''} ${reminder.reminder_type || ''}`.toLocaleLowerCase();
+        let filename = 'reminder_get_ready_story.mp4';
+        if (/flower|garden|plant/.test(task)) filename = 'reminder_gardening_story.mp4';
+        else if (/family|talk|call/.test(task)) filename = 'reminder_family_call_story.mp4';
+        else if (/meal|food|lunch|breakfast/.test(task)) filename = 'reminder_family_meal_story.mp4';
+        else if (/sleep|bed/.test(task)) filename = 'reminder_bedtime_story.mp4';
+        else if (/appointment/.test(task)) filename = 'reminder_appointment_story.mp4';
+        return `/generated-videos/reminders_story/${filename}`;
+      }
+
       function renderReminderExperiences(due, nextReminder, jobs) {
         if (!ui.reminderExperienceGrid) return;
         const dueIds = new Set((due || []).map((item) => item.reminder_id));
@@ -2379,6 +2390,7 @@
         reminders.forEach((reminder) => {
           const unlocked = dueIds.has(reminder.reminder_id);
           const job = jobs.find((item) => (item.reminder_id || item.scene_id) === reminder.reminder_id) || {};
+          const videoUrl = job.output_url || (unlocked ? bundledReminderVideoUrl(reminder) : null);
           const scoreValue = unlocked ? 100 : 75;
           const scoreText = `Score ${scoreValue}%`;
           const card = document.createElement('article');
@@ -2397,7 +2409,7 @@
 
           const status = document.createElement('span');
           status.className = 'reminder-lock-status';
-          status.textContent = unlocked ? `🔓 Unlocked • ${job.status || 'ready to open'}` : '🔒 Locked until the reminder time';
+          status.textContent = unlocked ? `🔓 Unlocked • ${job.status || (videoUrl ? 'video ready' : 'ready to open')}` : '🔒 Locked until the reminder time';
 
           const score = document.createElement('div');
           score.className = 'reminder-lock-status';
@@ -2415,15 +2427,15 @@
 
           const videoButton = document.createElement('button');
           videoButton.type = 'button';
-          videoButton.className = job.output_url ? 'secondary action-button' : 'secondary action-button';
-          videoButton.disabled = !job.output_url;
-          videoButton.textContent = job.output_url ? 'Watch video' : 'Video unavailable';
+          videoButton.className = 'secondary action-button';
+          videoButton.disabled = !videoUrl;
+          videoButton.textContent = videoUrl ? 'Watch video' : 'Video unavailable';
           videoButton.addEventListener('click', () => {
-            if (!job.output_url) return;
+            if (!videoUrl) return;
             const video = document.createElement('video');
             video.className = 'reminder-video-preview';
             video.controls = true;
-            video.src = apiUrl(job.output_url);
+            video.src = apiUrl(videoUrl);
             video.autoplay = true;
             video.playsInline = true;
             video.setAttribute('aria-label', `${reminder.task || 'Care'} reminder video`);
