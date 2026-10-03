@@ -16,6 +16,7 @@ from .api.stories import router as stories_router
 from .api.system import router as system_router
 from .api.voice import router as voice_router
 from .services.assets import STORY_IMAGE_ROOT
+from .services.local_video_catalog import _seed_bundled_videos
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,6 +56,10 @@ PATIENT_LIBRARY_ROOT = _resolved_output_dir(
 GENERATED_VIDEOS_ROOT = _resolved_output_dir(*OUTPUT_ROOT_CANDIDATES)
 PATIENT_LIBRARY_ROOT.mkdir(parents=True, exist_ok=True)
 GENERATED_VIDEOS_ROOT.mkdir(parents=True, exist_ok=True)
+_seed_bundled_videos(
+    GENERATED_VIDEOS_ROOT,
+    PROJECT_ROOT / "media" / "generated-videos",
+)
 
 app = FastAPI(
     title="Cogniv AI",

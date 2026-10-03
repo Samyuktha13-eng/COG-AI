@@ -14,3 +14,10 @@ cogniv-ai/
 *.jpeg
 *.png
 *.webm
+!media/
+!media/generated-videos/
+!media/generated-videos/**/*.mp4
+!media/generated-videos/**/*.m4v
+!media/generated-videos/**/*.mov
+!media/generated-videos/**/*.webm
+!media/generated-videos/**/*.ogv

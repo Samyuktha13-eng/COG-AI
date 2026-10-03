@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from collections import defaultdict
 from pathlib import Path
 
@@ -59,6 +60,19 @@ def _find_output_root() -> Path:
         if candidate.exists():
             return candidate.resolve()
     return (PROJECT_ROOT / "outputs").resolve()
+
+
+def _seed_bundled_videos(target_root: Path, source_root: Path) -> None:
+    if not source_root.is_dir():
+        return
+    for source in source_root.rglob("*"):
+        if not source.is_file() or source.suffix.lower() not in VIDEO_EXTENSIONS:
+            continue
+        destination = target_root / source.relative_to(source_root)
+        if destination.exists():
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
 
 def _guess_story_id(relative_path: str, folder_name: str, stem: str) -> str | None:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from backend.app.services.local_video_catalog import _build_generated_video_catalog
+from backend.app.services.local_video_catalog import _build_generated_video_catalog, _seed_bundled_videos
 
 
 def test_build_generated_video_catalog_detects_story_and_beat(tmp_path: Path):
@@ -57,3 +57,21 @@ def test_catalog_ignores_video_files_without_a_canonical_beat(tmp_path: Path):
 
     assert "mango_02" in catalog["mango_tree"]
     assert "mango_08" not in catalog["mango_tree"]
+
+
+def test_seed_bundled_videos_copies_missing_files_without_overwriting(tmp_path: Path):
+    source_root = tmp_path / "bundled"
+    target_root = tmp_path / "volume"
+    source_file = source_root / "jasmine_morning" / "jasmine_01_door.mp4"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"seed-video")
+    existing_file = target_root / "jasmine_morning" / "jasmine_02_pot.mp4"
+    existing_file.parent.mkdir(parents=True)
+    existing_file.write_bytes(b"existing-video")
+    existing_source = source_root / "jasmine_morning" / "jasmine_02_pot.mp4"
+    existing_source.write_bytes(b"replacement-video")
+
+    _seed_bundled_videos(target_root, source_root)
+
+    assert (target_root / "jasmine_morning" / "jasmine_01_door.mp4").read_bytes() == b"seed-video"
+    assert existing_file.read_bytes() == b"existing-video"
