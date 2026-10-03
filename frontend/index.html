@@ -2378,7 +2378,7 @@
 
         reminders.forEach((reminder) => {
           const unlocked = dueIds.has(reminder.reminder_id);
-          const job = jobs.find((item) => item.reminder_id === reminder.reminder_id) || {};
+          const job = jobs.find((item) => (item.reminder_id || item.scene_id) === reminder.reminder_id) || {};
           const scoreValue = unlocked ? 100 : 75;
           const scoreText = `Score ${scoreValue}%`;
           const card = document.createElement('article');
