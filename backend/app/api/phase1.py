@@ -486,7 +486,12 @@ def prewarm_reminder_videos(patient_id: str, now: str | None = None, lead_minute
     care_plan = CARE_PLANS.get(patient_id) or CarePlan(patient_id=patient_id)
     CARE_PLANS[patient_id] = care_plan
     parsed_now = datetime.fromisoformat(now) if now else datetime.now(timezone.utc)
-    reminders = CarePlanReminderScheduler(care_plan).upcoming_within(parsed_now, max(1, min(lead_minutes, 120)))
+    scheduler = CarePlanReminderScheduler(care_plan)
+    due_reminders = scheduler.trigger_due(parsed_now, window_minutes=1440)
+    upcoming_reminders = scheduler.upcoming_within(parsed_now, max(1, min(lead_minutes, 120)))
+    reminders_by_id = {reminder.reminder_id: reminder for reminder in due_reminders}
+    reminders_by_id.update({reminder.reminder_id: reminder for reminder in upcoming_reminders})
+    reminders = list(reminders_by_id.values())
     results: list[dict] = []
 
     from ..services.assets import STORY_IMAGE_ROOT, StoryAssetService
@@ -546,6 +551,22 @@ def prewarm_reminder_videos(patient_id: str, now: str | None = None, lead_minute
                 return f"/generated-videos/reminders_story/{path.name}"
         return None
 
+    def create_bundled_video_job(reminder, output_url):
+        job = VideoJob(
+            job_id=str(uuid.uuid4()),
+            patient_id=patient_id,
+            story_id="care_reminders",
+            scene_id=reminder.reminder_id,
+            status=VideoJobStatus.COMPLETED,
+            provider_job_id=f"bundled-{reminder.reminder_id}",
+            output_url=output_url,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        VIDEO_JOBS[job.job_id] = job
+        _save_index()
+        return job
+
     for reminder in reminders:
         existing = next(
             (
@@ -564,19 +585,7 @@ def prewarm_reminder_videos(patient_id: str, now: str | None = None, lead_minute
         image_path = reminder_image_path(reminder)
         fallback_url = bundled_reminder_video_url(reminder)
         if not image_path.is_file() and fallback_url:
-            job = VideoJob(
-                job_id=str(uuid.uuid4()),
-                patient_id=patient_id,
-                story_id="care_reminders",
-                scene_id=reminder.reminder_id,
-                status=VideoJobStatus.COMPLETED,
-                provider_job_id=f"bundled-{reminder.reminder_id}",
-                output_url=fallback_url,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            )
-            VIDEO_JOBS[job.job_id] = job
-            _save_index()
+            job = create_bundled_video_job(reminder, fallback_url)
             results.append(job.model_dump(mode="json"))
             continue
         if not image_path.is_file():
@@ -589,19 +598,7 @@ def prewarm_reminder_videos(patient_id: str, now: str | None = None, lead_minute
         except Exception as error:
             fallback_url = bundled_reminder_video_url(reminder)
             if fallback_url:
-                job = VideoJob(
-                    job_id=str(uuid.uuid4()),
-                    patient_id=patient_id,
-                    story_id="care_reminders",
-                    scene_id=reminder.reminder_id,
-                    status=VideoJobStatus.COMPLETED,
-                    provider_job_id=f"bundled-{reminder.reminder_id}",
-                    output_url=fallback_url,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
-                )
-                VIDEO_JOBS[job.job_id] = job
-                _save_index()
+                job = create_bundled_video_job(reminder, fallback_url)
                 results.append(job.model_dump(mode="json"))
                 continue
             results.append({"reminder_id": reminder.reminder_id, "status": "not_started", "error": str(error)})

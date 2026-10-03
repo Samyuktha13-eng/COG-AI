@@ -282,7 +282,7 @@ def test_reminder_prewarm_uses_bundled_video_when_image_asset_is_missing(monkeyp
     from backend.app.services.patient_library import VIDEO_JOBS
 
     patient_id = "lakshmi_001"
-    reminder_time = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%H:%M")
+    reminder_time = (datetime.now(timezone.utc) - timedelta(minutes=5)).strftime("%H:%M")
     care_plan = CarePlan(
         patient_id=patient_id,
         reminders=[
@@ -310,9 +310,10 @@ def test_reminder_prewarm_uses_bundled_video_when_image_asset_is_missing(monkeyp
 
     assert response.status_code == 200
     payload = response.json()["scheduled"]
-    assert payload[0]["status"] == "completed"
-    assert payload[0]["output_url"].endswith(".mp4")
-    assert "reminders_story" in payload[0]["output_url"]
+    job = next(item for item in payload if item.get("scene_id", item.get("reminder_id")) == "water_fallback_demo")
+    assert job["status"] == "completed"
+    assert job["output_url"].endswith(".mp4")
+    assert "reminders_story" in job["output_url"]
 
 
 def test_phase2_gameplay_exposes_game_progression_states():
