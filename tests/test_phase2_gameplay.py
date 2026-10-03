@@ -275,6 +275,46 @@ def test_game_uses_english_fallback_when_translation_fails(monkeypatch):
     assert "session_id" in response.json()
 
 
+def test_reminder_prewarm_uses_bundled_video_when_image_asset_is_missing(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from backend.app.models.care_plan import CarePlan, CarePlanReminder
+    from backend.app.services.patient_library import VIDEO_JOBS
+
+    patient_id = "lakshmi_001"
+    reminder_time = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%H:%M")
+    care_plan = CarePlan(
+        patient_id=patient_id,
+        reminders=[
+            CarePlanReminder(
+                reminder_id="water_fallback_demo",
+                patient_id=patient_id,
+                task="Drink water",
+                reminder_type="water",
+                time=reminder_time,
+                enabled=True,
+            )
+        ],
+    )
+    from backend.app.api import phase1
+
+    monkeypatch.setattr(
+        "backend.app.services.assets.StoryAssetService.validate_public_image_url",
+        lambda self, _: (_ for _ in ()).throw(RuntimeError("Public asset URL could not be reached (503)")),
+    )
+
+    phase1.CARE_PLANS[patient_id] = care_plan
+    VIDEO_JOBS.clear()
+
+    response = client.post(f"/api/patients/{patient_id}/care-plan/reminders/videos/prewarm?lead_minutes=15")
+
+    assert response.status_code == 200
+    payload = response.json()["scheduled"]
+    assert payload[0]["status"] == "completed"
+    assert payload[0]["output_url"].endswith(".mp4")
+    assert "reminders_story" in payload[0]["output_url"]
+
+
 def test_phase2_gameplay_exposes_game_progression_states():
     """Game sessions expose explicit progress markers and caregiver guidance."""
     session = client.post(
