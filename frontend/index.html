@@ -2365,11 +2365,12 @@
       function bundledReminderVideoUrl(reminder) {
         const task = `${reminder.task || ''} ${reminder.reminder_type || ''}`.toLocaleLowerCase();
         let filename = 'reminder_get_ready_story.mp4';
-        if (/flower|garden|plant/.test(task)) filename = 'reminder_gardening_story.mp4';
+        if (/jasmine|flower|garden|plant/.test(task)) filename = 'reminder_gardening_story.mp4';
+        else if (/mango|family meal|family moment|lunch|meal|food/.test(task)) filename = 'reminder_family_meal_story.mp4';
+        else if (/breakfast/.test(task)) filename = 'reminder_breakfast_story.mp4';
         else if (/family|talk|call/.test(task)) filename = 'reminder_family_call_story.mp4';
-        else if (/meal|food|lunch|breakfast/.test(task)) filename = 'reminder_family_meal_story.mp4';
         else if (/sleep|bed/.test(task)) filename = 'reminder_bedtime_story.mp4';
-        else if (/appointment/.test(task)) filename = 'reminder_appointment_story.mp4';
+        else if (/appointment|doctor/.test(task)) filename = 'reminder_appointment_story.mp4';
         return `/generated-videos/reminders_story/${filename}`;
       }
 
@@ -2390,7 +2391,8 @@
         reminders.forEach((reminder) => {
           const unlocked = dueIds.has(reminder.reminder_id);
           const job = jobs.find((item) => (item.reminder_id || item.scene_id) === reminder.reminder_id) || {};
-          const videoUrl = job.output_url || (unlocked ? bundledReminderVideoUrl(reminder) : null);
+          const isBundledJob = String(job.provider_job_id || '').startsWith('bundled-');
+          const videoUrl = (isBundledJob ? null : job.output_url) || (unlocked ? bundledReminderVideoUrl(reminder) : null);
           const scoreValue = unlocked ? 100 : 75;
           const scoreText = `Score ${scoreValue}%`;
           const card = document.createElement('article');
