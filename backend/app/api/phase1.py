@@ -472,6 +472,7 @@ def get_due_care_reminders(patient_id: str, now: str | None = None, window_minut
         "timestamp": parsed_now.isoformat(),
         "count": len(due),
         "due_reminders": [item.model_dump(mode="json") for item in due],
+        "all_reminders": [item.model_dump(mode="json") for item in care_plan.reminders],
         "next_reminder": next_reminder.model_dump(mode="json") if next_reminder else None,
         "next_action": next_action,
     }

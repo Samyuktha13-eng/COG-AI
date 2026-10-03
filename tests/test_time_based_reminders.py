@@ -94,3 +94,27 @@ def test_due_endpoint_uses_window_for_realistic_care_prompts():
     payload = response.json()
     assert payload["count"] >= 1
     assert any(item["reminder_id"] == "rem_morning_water" for item in payload["due_reminders"])
+
+
+def test_due_endpoint_includes_all_care_plan_reminders(monkeypatch):
+    from backend.app.api.phase1 import CARE_PLANS
+
+    care_plan = CarePlan(
+        patient_id="lakshmi_001",
+        reminders=[
+            CarePlanReminder(reminder_id="due", task="Drink water", time="09:00"),
+            CarePlanReminder(reminder_id="future", task="Take a walk", time="18:00"),
+            CarePlanReminder(reminder_id="disabled", task="Call family", time="20:00", enabled=False),
+        ],
+    )
+    monkeypatch.setitem(CARE_PLANS, "lakshmi_001", care_plan)
+
+    response = client.get(
+        "/api/patients/lakshmi_001/care-plan/reminders/due",
+        params={"now": "2026-09-20T09:00:00+00:00", "window_minutes": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["reminder_id"] for item in payload["all_reminders"]] == ["due", "future", "disabled"]
+    assert [item["reminder_id"] for item in payload["due_reminders"]] == ["due"]

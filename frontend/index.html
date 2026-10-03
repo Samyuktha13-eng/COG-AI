@@ -1425,14 +1425,15 @@
       #transcriptPreviewText { min-height:1.4em; margin:5px 0 0; color:var(--text); overflow-wrap:anywhere; }
 
       .reminder-experience-grid { display:grid; gap:12px; margin-top:14px; }
-      .reminder-experience-card { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; padding:14px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,.7); }
+      .reminder-experience-card { display:grid; grid-template-columns:auto minmax(0, 1fr) auto; align-items:center; gap:14px; padding:14px; border:1px solid var(--border); border-radius:14px; background:rgba(255,255,255,.7); }
       .reminder-experience-card.locked { opacity:.68; filter:saturate(.7); }
+      .reminder-experience-card.completed { border-color:rgba(16,185,129,.38); background:rgba(16,185,129,.06); }
       .reminder-experience-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:14px; background:rgba(139,92,246,.1); font-size:1.35rem; }
       .reminder-experience-card.unlocked .reminder-experience-icon { background:rgba(245,158,11,.16); }
       .reminder-experience-card h3 { margin:0; font-size:1rem; }
       .reminder-experience-card p { margin:4px 0 0; color:var(--muted); font-size:.84rem; line-height:1.45; }
       .reminder-lock-status { display:block; margin-top:6px; color:var(--muted); font-size:.74rem; font-weight:700; }
-      .reminder-video-preview { grid-column:1 / -1; width:100%; max-height:220px; border-radius:12px; background:#f1eef9; }
+      .reminder-video-preview { grid-column:1 / -1; width:100%; aspect-ratio:16 / 9; max-height:min(70vh, 560px); object-fit:contain; border-radius:12px; background:#111827; }
       .reminder-confirmation { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:14px; padding:12px 14px; border:1px solid rgba(245,158,11,.25); border-radius:14px; background:rgba(245,158,11,.08); }
       .reminder-confirmation-status { flex:1 1 240px; color:#92400e; font-size:.86rem; }
 
@@ -2123,6 +2124,17 @@
       let reminderRecording = false;
       let selectedReminder = null;
       let reminderCards = [];
+      const reminderCompletionStorageKey = `cogniv:reminder-completions:${patientId}:${new Date().toLocaleDateString()}`;
+      function loadCompletedReminderIds() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(reminderCompletionStorageKey) || '[]');
+          return Array.isArray(saved) ? saved : [];
+        } catch {
+          return [];
+        }
+      }
+      const completedReminderIds = new Set(loadCompletedReminderIds());
+      let reminderViewData = { due: [], nextReminder: null, jobs: [], allReminders: [] };
       let experienceCatalog = [];
       let currentExperienceId = null;
       let currentExperiencePrompt = '';
@@ -2374,10 +2386,12 @@
         return `/generated-videos/reminders_story/${filename}`;
       }
 
-      function renderReminderExperiences(due, nextReminder, jobs) {
+      function renderReminderExperiences(due, nextReminder, jobs, allReminders = []) {
         if (!ui.reminderExperienceGrid) return;
         const dueIds = new Set((due || []).map((item) => item.reminder_id));
-        const reminders = Array.isArray(due) && due.length ? due : nextReminder ? [nextReminder] : [];
+        const reminders = Array.isArray(allReminders) && allReminders.length
+          ? allReminders
+          : Array.isArray(due) && due.length ? due : nextReminder ? [nextReminder] : [];
         reminderCards = reminders;
         ui.reminderExperienceGrid.replaceChildren();
         if (!reminders.length) {
@@ -2389,18 +2403,19 @@
         }
 
         reminders.forEach((reminder) => {
-          const unlocked = dueIds.has(reminder.reminder_id);
+          const completed = completedReminderIds.has(reminder.reminder_id);
+          const unlocked = reminder.enabled !== false && dueIds.has(reminder.reminder_id);
           const job = jobs.find((item) => (item.reminder_id || item.scene_id) === reminder.reminder_id) || {};
           const isBundledJob = String(job.provider_job_id || '').startsWith('bundled-');
           const videoUrl = (isBundledJob ? null : job.output_url) || (unlocked ? bundledReminderVideoUrl(reminder) : null);
           const scoreValue = unlocked ? 100 : 75;
           const scoreText = `Score ${scoreValue}%`;
           const card = document.createElement('article');
-          card.className = `reminder-experience-card ${unlocked ? 'unlocked' : 'locked'}`;
+          card.className = `reminder-experience-card ${completed ? 'completed' : unlocked ? 'unlocked' : 'locked'}`;
 
           const icon = document.createElement('div');
           icon.className = 'reminder-experience-icon';
-          icon.textContent = unlocked ? reminderIcon(reminder) : '🔒';
+          icon.textContent = completed ? '✅' : unlocked ? reminderIcon(reminder) : '🔒';
 
           const copy = document.createElement('div');
           const title = document.createElement('h3');
@@ -2411,7 +2426,13 @@
 
           const status = document.createElement('span');
           status.className = 'reminder-lock-status';
-          status.textContent = unlocked ? `🔓 Unlocked • ${job.status || (videoUrl ? 'video ready' : 'ready to open')}` : '🔒 Locked until the reminder time';
+          status.textContent = completed
+            ? '✅ Done today'
+            : reminder.enabled === false
+              ? '⏸️ Disabled'
+              : unlocked
+                ? `🔓 Unlocked • ${job.status || (videoUrl ? 'video ready' : 'ready to open')}`
+                : '🔒 Locked until the reminder time';
 
           const score = document.createElement('div');
           score.className = 'reminder-lock-status';
@@ -2422,21 +2443,22 @@
 
           const actionButton = document.createElement('button');
           actionButton.type = 'button';
-          actionButton.className = unlocked ? 'action-button' : 'secondary action-button';
-          actionButton.textContent = unlocked ? 'Open reminder' : 'Locked';
-          actionButton.disabled = !unlocked;
+          actionButton.className = unlocked && !completed ? 'action-button' : 'secondary action-button';
+          actionButton.textContent = completed ? 'Done' : reminder.enabled === false ? 'Disabled' : unlocked ? 'Open reminder' : 'Locked';
+          actionButton.disabled = !unlocked || completed;
           actionButton.addEventListener('click', () => selectReminder(reminder, job));
 
           const videoButton = document.createElement('button');
           videoButton.type = 'button';
           videoButton.className = 'secondary action-button';
-          videoButton.disabled = !videoUrl;
-          videoButton.textContent = videoUrl ? 'Watch video' : 'Video unavailable';
+          videoButton.disabled = !unlocked || !videoUrl;
+          videoButton.textContent = !unlocked ? 'Locked' : videoUrl ? 'Watch video' : 'Video unavailable';
           videoButton.addEventListener('click', () => {
-            if (!videoUrl) return;
+            if (!unlocked || !videoUrl) return;
             const video = document.createElement('video');
             video.className = 'reminder-video-preview';
             video.controls = true;
+            video.preload = 'auto';
             video.src = apiUrl(videoUrl);
             video.autoplay = true;
             video.playsInline = true;
@@ -2445,7 +2467,11 @@
             const existing = card.querySelector('.reminder-video-preview');
             if (existing) existing.remove();
             card.appendChild(video);
+            video.addEventListener('error', () => {
+              videoButton.textContent = 'Video failed to load';
+            }, { once: true });
             video.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            video.play().catch(() => { video.controls = true; });
           });
 
           const actionGroup = document.createElement('div');
@@ -2471,6 +2497,18 @@
 
       function reminderConfirmed() {
         if (!selectedReminder) return;
+        completedReminderIds.add(selectedReminder.reminder_id);
+        try {
+          localStorage.setItem(reminderCompletionStorageKey, JSON.stringify([...completedReminderIds]));
+        } catch {
+          // Completion remains visible for this page even when storage is unavailable.
+        }
+        renderReminderExperiences(
+          reminderViewData.due,
+          reminderViewData.nextReminder,
+          reminderViewData.jobs,
+          reminderViewData.allReminders,
+        );
         const language = selectedLanguage();
         ui.reminderConfirmationStatus.textContent = reminderCopy(language).confirmed;
         ui.confirmReminderBtn.disabled = true;
@@ -4467,7 +4505,9 @@
           const due = result.due_reminders || [];
           const nextReminder = result.next_reminder;
           const jobs = prewarm?.scheduled || [];
-          renderReminderExperiences(due, nextReminder, jobs);
+          const allReminders = result.all_reminders || [];
+          reminderViewData = { due, nextReminder, jobs, allReminders };
+          renderReminderExperiences(due, nextReminder, jobs, allReminders);
 
           if (ui.reminderVideoSchedule) {
             ui.reminderVideoSchedule.innerHTML = jobs.length
