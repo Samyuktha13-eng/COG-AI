@@ -29,6 +29,10 @@ services:
         sync: false
       - key: AZURE_TRANSLATOR_ENDPOINT
         value: https://api.cognitive.microsofttranslator.com
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_TRANSLATION_MODEL
+        value: llama-3.3-70b-versatile
       - key: PIXAZO_API_KEY
         sync: false
       - key: STORY_IMAGE_DIR
